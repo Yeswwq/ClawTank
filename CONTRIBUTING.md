@@ -30,6 +30,22 @@ make lint          # clippy -D warnings, rustfmt --check, swiftlint --strict
 
 For Xcode, run `make core project` and open `app/ClawTank.xcodeproj`. The project is generated from `app/project.yml` by XcodeGen, so edit that file, not the `.xcodeproj`.
 
+## Branching and upstream sync
+
+Keep `main` aligned with `upstream/main` and do feature work on a focused branch.
+For the Intel/NVIDIA effort, use [`docs/macos26-intel-nvidia-rdp.md`](docs/macos26-intel-nvidia-rdp.md)
+as the scope and acceptance contract. Before publishing a branch, rebase it on
+the current upstream baseline and run the relevant lint and test commands:
+
+```sh
+git fetch upstream
+git rebase upstream/main
+make lint test
+```
+
+Do not mix generated Xcode projects, build products, signing keys or unrelated
+refactors into a protocol or macOS integration change.
+
 | Target | What it does |
 |---|---|
 | `make test-core` / `make test-app` | Only the Rust or only the Swift tests |
