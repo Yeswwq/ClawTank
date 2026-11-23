@@ -30,20 +30,24 @@ NVIDIA encoder path is available.
 The repository uses a Rust RDP core and a Swift macOS host. The host video path
 is ScreenCaptureKit → VideoToolbox → RDP EGFX AVC420. ClawTank has no direct
 NVENC/CUDA backend; `H264Encoder` asks VideoToolbox for a hardware encoder. A
-current community driver project, NullMoth, reports VideoToolbox H.264 hardware
-encoding for NVIDIA Turing and newer GPUs on x86_64 macOS 26. That gives this
-branch a plausible integration route through the existing encoder API, subject
-to validation with ClawTank's exact encoder settings and RDP pipeline.
+community driver project, NullMoth, currently lists x86_64 macOS 26 and NVIDIA
+Turing-and-newer cards as targets. Its own 2.9 parity audit reports H.264/HEVC
+hardware encoding through VideoToolbox across listed GPU generations. That
+gives this branch a plausible route through the existing encoder API, subject
+to validation with ClawTank's exact encoder settings and RDP pipeline. The
+audit is project-reported evidence: its media-service selection still needs
+second-device testing, so it does not prove ClawTank compatibility.
 
 Apple officially supports macOS 26 on a short list of Intel Macs: the 2019
 16-inch MacBook Pro, 2020 four-port 13-inch MacBook Pro, 2020 27-inch iMac and
 2019 Mac Pro. See [Apple's compatibility list](https://support.apple.com/en-us/122867).
-NullMoth is a third-party, OpenCore-based driver project rather than an NVIDIA
-or Apple-supported configuration. Its published setup requires OpenCore boot
-configuration changes, reduced macOS security settings and kernel extensions;
-follow its own documentation and record the exact GPU, driver build and boot
-configuration. Its driver components use PolyForm Noncommercial 1.0.0, so do
-not copy or redistribute those components as part of ClawTank.
+NullMoth is a third-party, OpenCore-based driver project, not an Apple- or
+NVIDIA-supported configuration. Its setup requires kernel extensions and
+non-default OpenCore boot and security settings. Record the exact GPU, driver
+build and boot configuration for every test. Its plugin, kernel extensions and
+packaging components use PolyForm Noncommercial 1.0.0 (the translator has a
+separate LGPL-3.0 license); do not copy or redistribute those components as
+part of ClawTank.
 
 Current local build probe (2026-11-23): this host is x86_64 on macOS 26.7.3,
 with Swift 6.3.3 and macOS SDK 26.5. `make ARCH=x86_64 core` could not run because
@@ -85,10 +89,8 @@ encoder identifier and `UsingHardwareAcceleratedVideoEncoder` result. Apple's
 [VideoToolbox documentation](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_usinghardwareacceleratedvideoencoder)
 defines that property as the runtime indication that hardware encoding is in
 use. Do not infer that a registered NVIDIA encoder is selected just because
-the display is accelerated. The community driver's own parity audit reports
-VideoToolbox H.264 encoding by GPU generation, but hardware and Tahoe build
-combinations still need direct testing; a recent macOS 26.7.2 issue reports an
-external codec registration failure on a GA106/RTX 3060 configuration.
+the display is accelerated. Test the exact Tahoe build, GPU and driver because
+the community parity audit is not a ClawTank test result.
 
 ## Engineering boundaries
 
