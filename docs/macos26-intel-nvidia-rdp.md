@@ -33,6 +33,15 @@ or CUDA integration in the current code. `H264Encoder` asks VideoToolbox for a
 hardware encoder, so NVIDIA support must be established by runtime evidence on
 the target Mac rather than by the CPU architecture alone.
 
+macOS 26 officially supports only a small set of Intel Macs: the 16-inch 2019
+MacBook Pro, the four-port 13-inch 2020 MacBook Pro, the 2020 iMac and the 2019
+Mac Pro. Apple lists the supported models in its [macOS Tahoe compatibility
+list](https://support.apple.com/en-us/122867). NVIDIA's published Mac driver
+material is for much older macOS releases, including the High Sierra 10.13.6
+Web Driver; CUDA 10.2 is documented as the last CUDA release for macOS. Treat a
+modern Intel/NVIDIA setup as an experimental host until the exact GPU and driver
+are identified and VideoToolbox reports a working encoder.
+
 The build defaults to the host architecture. On an Intel Mac this naturally
 selects `x86_64` for both Cargo and Xcode. Cross-building an Intel app from
 Apple silicon is a separate task: the Rust static library must also be built
@@ -55,6 +64,12 @@ for `x86_64-apple-darwin`; setting only Xcode's `ARCHS` is insufficient.
 5. **RDP interoperability:** validate Windows App or `mstsc`, FreeRDP 3 and a
    second macOS client for NLA, resize, AVC420, cursor, input, audio and
    clipboard. Record client, GPU, driver and macOS build for every result.
+
+For encoder evidence, query the VideoToolbox encoder state and record the
+encoder identifier and `UsingHardwareAcceleratedVideoEncoder` result. Apple's
+[VideoToolbox documentation](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_usinghardwareacceleratedvideoencoder)
+defines that property as the runtime indication that hardware encoding is in
+use.
 
 ## Engineering boundaries
 
