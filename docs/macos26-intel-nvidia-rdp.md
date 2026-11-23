@@ -49,11 +49,20 @@ packaging components use PolyForm Noncommercial 1.0.0 (the translator has a
 separate LGPL-3.0 license); do not copy or redistribute those components as
 part of ClawTank.
 
-Current local build probe (2026-11-23): this host is x86_64 on macOS 26.7.3,
-with Swift 6.3.3 and macOS SDK 26.5. `make ARCH=x86_64 core` could not run because
-Cargo is absent. `xcodebuild` also cannot run because only Command Line Tools
-are selected; Rust, XcodeGen and SwiftLint are not installed. This is an
-environment blocker, not a compiler error in the project.
+Current local build probe (2026-11-23): Mac Pro (MacPro7,1), Intel Xeon W,
+32 GB RAM and NVIDIA GeForce RTX 5060 (8 GB), running macOS 26.7.3 build
+25G342. The host is `x86_64`; Swift 6.3.3 targets
+`x86_64-apple-macosx26.0`, and the installed macOS SDK is 26.5. The GPU is
+visible to macOS with Metal 4. The reported CPU core counts differ between
+system interfaces, so this record omits a core count.
+
+Initial build probe: `make ARCH=x86_64 core` stopped because Cargo was absent.
+MacPorts 2.12.7 is available and currently has no installed ports. Rust,
+XcodeGen and SwiftLint are being bootstrapped with MacPorts. The active developer
+directory is `/Library/Developer/CommandLineTools`; full Xcode and `xcodebuild`
+are not installed. Rust core compilation can be checked after bootstrapping, but
+the Swift app build and XCTest remain blocked until full Xcode is installed.
+These are environment blockers, not compiler errors in the project.
 
 The build defaults to the host architecture. On an Intel Mac this naturally
 selects `x86_64` for both Cargo and Xcode. Cross-building an Intel app from
