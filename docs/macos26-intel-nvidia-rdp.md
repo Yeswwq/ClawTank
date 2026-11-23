@@ -28,24 +28,39 @@ NVIDIA encoder path is available.
 ## Current baseline
 
 The repository uses a Rust RDP core and a Swift macOS host. The host video path
-is ScreenCaptureKit → VideoToolbox → RDP EGFX AVC420. There is no NVIDIA NVENC
-or CUDA integration in the current code. `H264Encoder` asks VideoToolbox for a
-hardware encoder, so NVIDIA support must be established by runtime evidence on
-the target Mac rather than by the CPU architecture alone.
+is ScreenCaptureKit → VideoToolbox → RDP EGFX AVC420. ClawTank has no direct
+NVENC/CUDA backend; `H264Encoder` asks VideoToolbox for a hardware encoder. A
+current community driver project, NullMoth, reports VideoToolbox H.264 hardware
+encoding for NVIDIA Turing and newer GPUs on x86_64 macOS 26. That gives this
+branch a plausible integration route through the existing encoder API, subject
+to validation with ClawTank's exact encoder settings and RDP pipeline.
 
-macOS 26 officially supports only a small set of Intel Macs: the 16-inch 2019
-MacBook Pro, the four-port 13-inch 2020 MacBook Pro, the 2020 iMac and the 2019
-Mac Pro. Apple lists the supported models in its [macOS Tahoe compatibility
-list](https://support.apple.com/en-us/122867). NVIDIA's published Mac driver
-material is for much older macOS releases, including the High Sierra 10.13.6
-Web Driver; CUDA 10.2 is documented as the last CUDA release for macOS. Treat a
-modern Intel/NVIDIA setup as an experimental host until the exact GPU and driver
-are identified and VideoToolbox reports a working encoder.
+Apple officially supports macOS 26 on a short list of Intel Macs: the 2019
+16-inch MacBook Pro, 2020 four-port 13-inch MacBook Pro, 2020 27-inch iMac and
+2019 Mac Pro. See [Apple's compatibility list](https://support.apple.com/en-us/122867).
+NullMoth is a third-party, OpenCore-based driver project rather than an NVIDIA
+or Apple-supported configuration. Its published setup requires OpenCore boot
+configuration changes, reduced macOS security settings and kernel extensions;
+follow its own documentation and record the exact GPU, driver build and boot
+configuration. Its driver components use PolyForm Noncommercial 1.0.0, so do
+not copy or redistribute those components as part of ClawTank.
+
+Current local build probe (2026-11-23): this host is x86_64 on macOS 26.7.3,
+with Swift 6.3.3 and macOS SDK 26.5. `make ARCH=x86_64 core` could not run because
+Cargo is absent. `xcodebuild` also cannot run because only Command Line Tools
+are selected; Rust, XcodeGen and SwiftLint are not installed. This is an
+environment blocker, not a compiler error in the project.
 
 The build defaults to the host architecture. On an Intel Mac this naturally
 selects `x86_64` for both Cargo and Xcode. Cross-building an Intel app from
 Apple silicon is a separate task: the Rust static library must also be built
 for `x86_64-apple-darwin`; setting only Xcode's `ARCHS` is insufficient.
+The current Makefile does not pass a Cargo target, so `make build ARCH=x86_64`
+is a native-Intel path today, not a complete Apple-silicon cross-build path.
+The general app target has no arm64-only source restriction, but the current
+release helper packages `clawtank-mcp` as an arm64-only MCP Bundle. An Intel
+release therefore needs either a separate MCP bundle policy or a packaging
+change validated with the registry consumers.
 
 ## Acceptance matrix
 
@@ -69,7 +84,11 @@ For encoder evidence, query the VideoToolbox encoder state and record the
 encoder identifier and `UsingHardwareAcceleratedVideoEncoder` result. Apple's
 [VideoToolbox documentation](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_usinghardwareacceleratedvideoencoder)
 defines that property as the runtime indication that hardware encoding is in
-use.
+use. Do not infer that a registered NVIDIA encoder is selected just because
+the display is accelerated. The community driver's own parity audit reports
+VideoToolbox H.264 encoding by GPU generation, but hardware and Tahoe build
+combinations still need direct testing; a recent macOS 26.7.2 issue reports an
+external codec registration failure on a GA106/RTX 3060 configuration.
 
 ## Engineering boundaries
 
@@ -87,9 +106,12 @@ use.
 ## First implementation sequence
 
 1. Establish a reproducible x86_64 build and test environment on macOS 26.
-2. Add an x86_64 CI or self-hosted verification job without changing the
+2. Decide whether Intel is a supported release target; if so, remove the
+   arm64-only MCP packaging assumption with a compatibility-tested change.
+3. Add an x86_64 CI or self-hosted verification job without changing the
    default Apple-silicon release path.
-3. Instrument and test VideoToolbox on the target NVIDIA hardware; decide
-   whether the existing path is sufficient or a fallback abstraction is needed.
-4. Fix only measured RDP regressions, keeping each protocol or host change
+4. Test the existing VideoToolbox hardware-required path on the target GPU and
+   inspect encoder selection and sustained RDP output. Add an encoder fallback
+   abstraction only if measurements show the existing path cannot meet the goal.
+5. Fix only measured RDP regressions, keeping each protocol or host change
    independently reviewable and upstreamable.
