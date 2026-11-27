@@ -188,7 +188,7 @@ async fn file_range_latency() {
             continue;
         };
         let (action, payload) = read.unwrap();
-        for out in stage.process(&mut image, action, &payload).unwrap() {
+        for out in stage.process(&mut image, action, &payload, None).unwrap() {
             if let ActiveStageOutput::ResponseFrame(b) = out {
                 session.write_all(&b).await.unwrap();
             }

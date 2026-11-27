@@ -28,8 +28,21 @@ protocol VirtualDisplayProvider {
 
 enum VirtualDisplayError: Error, Equatable {
     case unavailable
+    case unsupportedSize
     case applyFailed
     case didNotAppear
+}
+
+enum VirtualDisplayLimits {
+    static let minSide = 200
+    static let maxSide = 3840
+    static let maxArea = 3840 * 2400
+
+    static func supports(width: Int, height: Int) -> Bool {
+        (minSide...maxSide).contains(width)
+            && (minSide...maxSide).contains(height)
+            && width * height <= maxArea
+    }
 }
 
 struct CGVirtualDisplayProvider: VirtualDisplayProvider {
@@ -39,6 +52,9 @@ struct CGVirtualDisplayProvider: VirtualDisplayProvider {
 
     func create(widthPixels: Int, heightPixels: Int, hiDPI: Bool) async throws -> VirtualDisplay {
         guard isAvailable else { throw VirtualDisplayError.unavailable }
+        guard VirtualDisplayLimits.supports(width: widthPixels, height: heightPixels) else {
+            throw VirtualDisplayError.unsupportedSize
+        }
         let handle = try CGVirtualDisplayHandle(widthPixels: widthPixels, heightPixels: heightPixels, hiDPI: hiDPI)
         // The window server brings the display up asynchronously: wait until it is online *and*
         // has the requested size, so capture never starts against a half-configured display.
@@ -72,16 +88,19 @@ final class CGVirtualDisplayHandle: VirtualDisplay, @unchecked Sendable {
     private var hiDPI: Bool
     private let log = Logger(subsystem: "dev.clawtank.ClawTank", category: "display")
 
-    /// Largest framebuffer we allow (Display Control caps the client at 3840×2400).
-    static let maxPixels = (width: 3840, height: 2400)
+    /// Axis cap is symmetric; the protocol pixel-area budget remains 3840×2400.
+    static let maxPixels = (width: 3840, height: 3840)
 
     init(widthPixels: Int, heightPixels: Int, hiDPI: Bool) throws {
+        guard VirtualDisplayLimits.supports(width: widthPixels, height: heightPixels) else {
+            throw VirtualDisplayError.unsupportedSize
+        }
         let created: (CGVirtualDisplay, CGDirectDisplayID)? = autoreleasepool {
             let descriptor = CGVirtualDisplayDescriptor()
             descriptor.queue = DispatchQueue(label: "dev.clawtank.virtual-display")
             descriptor.name = "ClawTank"
-            descriptor.maxPixelsWide = UInt32(max(Self.maxPixels.width, widthPixels))
-            descriptor.maxPixelsHigh = UInt32(max(Self.maxPixels.height, heightPixels))
+            descriptor.maxPixelsWide = UInt32(Self.maxPixels.width)
+            descriptor.maxPixelsHigh = UInt32(Self.maxPixels.height)
             descriptor.sizeInMillimeters = Self.physicalSize(widthPixels: widthPixels, heightPixels: heightPixels,
                                                              hiDPI: hiDPI)
             descriptor.vendorID = Self.vendorID
@@ -124,7 +143,7 @@ final class CGVirtualDisplayHandle: VirtualDisplay, @unchecked Sendable {
     func hasSize(_ widthPixels: Int, _ heightPixels: Int) -> Bool {
         let divisor = hiDPI ? 2 : 1
         let size = CGDisplayBounds(displayID).size
-        return Int(size.width) == widthPixels / divisor && Int(size.height) == heightPixels / divisor
+        return Int(size.width) * divisor == widthPixels && Int(size.height) * divisor == heightPixels
     }
 
     func invalidate() {

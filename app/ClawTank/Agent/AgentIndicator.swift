@@ -46,7 +46,7 @@ final class AgentIndicator {
         var body: some View {
             HStack(spacing: 8) {
                 Image(systemName: "cursorarrow.rays")
-                Text("Agent “\(agent)” is in control").font(.callout.weight(.medium))
+                Text(String(localized: "Agent “\(agent)” is in control")).font(.callout.weight(.medium))
                 Button("Stop", action: onStop).controlSize(.small)
             }
             .padding(.horizontal, 12)
@@ -54,7 +54,7 @@ final class AgentIndicator {
             .background(.orange.opacity(0.92), in: Capsule())
             .foregroundStyle(.black)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Agent \(agent) is in control. Stop button.")
+            .accessibilityLabel(String(localized: "Agent \(agent) is in control. Stop button."))
         }
     }
 }

@@ -121,14 +121,17 @@ async fn client_input_reaches_host_and_cursor_reaches_client() {
             down: true,
         },
         InputEvent::Move { x: 400, y: 300 },
+        InputEvent::Move { x: 400, y: 300 },
         InputEvent::Button {
             button: MouseButton::Left,
             down: true,
         },
+        InputEvent::Move { x: 400, y: 300 },
         InputEvent::Button {
             button: MouseButton::Left,
             down: false,
         },
+        InputEvent::Move { x: 400, y: 300 },
         InputEvent::Button {
             button: MouseButton::Middle,
             down: true,
@@ -141,6 +144,7 @@ async fn client_input_reaches_host_and_cursor_reaches_client() {
             vertical: 0,
             horizontal: -120,
         },
+        InputEvent::Move { x: 400, y: 300 },
         InputEvent::Button {
             button: MouseButton::X1,
             down: true,
@@ -161,7 +165,7 @@ async fn client_input_reaches_host_and_cursor_reaches_client() {
         };
         let (action, payload) = read.expect("read");
         for out in stage
-            .process(&mut image, action, &payload)
+            .process(&mut image, action, &payload, None)
             .expect("process")
         {
             match out {

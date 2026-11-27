@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.HMAKT99/clawtank",
+  "name": "io.github.Yeswwq/clawtank",
   "title": "ClawTank",
   "description": "Let agents see and drive a Mac: screenshots, clicks, typing, apps and virtual displays.",
   "repository": {
-    "url": "https://github.com/HMAKT99/ClawTank",
+    "url": "https://github.com/Yeswwq/ClawTank",
     "source": "github"
   },
-  "websiteUrl": "https://github.com/HMAKT99/ClawTank/blob/main/docs/agent-api.md",
-  "version": "0.9.0",
+  "websiteUrl": "https://github.com/Yeswwq/ClawTank/blob/main/docs/agent-api.md",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/HMAKT99/ClawTank/releases/download/v0.9.0/clawtank-mcp-0.9.0-arm64.mcpb",
-      "fileSha256": "39d8e9e14032345765ff0075923a979f329d506ca390b56472f4a12c2d9e1af3",
+      "identifier": "https://github.com/Yeswwq/ClawTank/releases/download/v1.0.0/clawtank-mcp-1.0.0-x86_64.mcpb",
+      "fileSha256": "1ea0ebfbce63801082d595c98c15f497eb6fea4e4cbd206c003c2aadbc208da2",
       "transport": {
         "type": "stdio"
       },

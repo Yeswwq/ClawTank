@@ -40,6 +40,8 @@ enum ClientInput: Equatable, Sendable {
     case relativeMove(dx: Int, dy: Int)
     case button(Int, down: Bool)
     case wheel(vertical: Int, horizontal: Int)
+    /// RDPEI contact sample. Flags use the MS-RDPEI contactFlags bit layout.
+    case touch(contactID: Int, flags: UInt32, x: Int, y: Int)
 }
 
 final class InputInjector {
@@ -65,6 +67,34 @@ final class InputInjector {
 
     private var lastClick: Click?
     private var scrollRemainder = (vertical: 0.0, horizontal: 0.0)
+
+    // macOS does not expose a public API for injecting arbitrary multitouch contacts into the
+    // system trackpad device. We preserve the protocol's contacts here and map the useful,
+    // portable semantics onto CGEvent: one finger becomes a click/drag and two fingers become
+    // continuous scrolling. This keeps gestures deterministic across macOS and avoids private
+    // MultitouchSupport APIs that cannot be shipped or signed reliably.
+    private struct TouchContact {
+        var point: CGPoint
+        var engaged: Bool
+    }
+
+    private enum TouchGesture {
+        case pendingSingle(id: Int, start: CGPoint)
+        case dragging(id: Int)
+        case scrolling
+    }
+
+    private var touches: [Int: TouchContact] = [:]
+    private var touchGesture: TouchGesture?
+    private var touchCentroid: CGPoint?
+
+    private static let touchDown: UInt32 = 0x0001
+    private static let touchUpdate: UInt32 = 0x0002
+    private static let touchUp: UInt32 = 0x0004
+    private static let touchInRange: UInt32 = 0x0008
+    private static let touchInContact: UInt32 = 0x0010
+    private static let touchCanceled: UInt32 = 0x0020
+    private static let touchMoveThreshold = 4.0
 
     init(mapper: CoordinateMapper, swapControlCommand: Bool, poster: EventPoster = SystemEventPoster()) {
         self.mapper = mapper
@@ -93,11 +123,13 @@ final class InputInjector {
             move(to: mapper.clamp(CGPoint(x: position.x + Double(dx) / scale, y: position.y + Double(dy) / scale)))
         case let .button(button, down): self.button(button, down: down)
         case let .wheel(vertical, horizontal): wheel(vertical: vertical, horizontal: horizontal)
+        case let .touch(contactID, flags, x, y): touch(contactID: contactID, flags: flags, x: x, y: y)
         }
     }
 
     /// Releases every held key and button (call on disconnect).
     func releaseAll() {
+        releaseTouches()
         for button in heldButtons.sorted() { self.button(button, down: false) }
         for key in heldKeys.sorted() {
             heldKeys.remove(key)
@@ -226,5 +258,126 @@ final class InputInjector {
         event.location = position
         event.flags = currentFlags
         poster.post(event)
+    }
+}
+
+// MARK: RDPEI touch
+
+private extension InputInjector {
+
+    private func touch(contactID: Int, flags: UInt32, x: Int, y: Int) {
+        let point = mapper.displayPoint(sessionX: Double(x), sessionY: Double(y))
+        let isCanceled = flags & Self.touchCanceled != 0
+        let isDown = flags & Self.touchDown != 0
+        let isUp = flags & Self.touchUp != 0
+        let inContact = flags & Self.touchInContact != 0
+        let inRange = flags & Self.touchInRange != 0
+
+        if isDown {
+            beginTouch(contactID: contactID, point: point, inContact: inContact)
+            return
+        }
+        guard touches[contactID] != nil || (flags & Self.touchUpdate != 0 && inRange) else { return }
+        if isUp || isCanceled || !inRange {
+            finishTouch(contactID: contactID, point: point, canceled: isCanceled)
+            return
+        }
+        updateTouch(contactID: contactID, point: point, inContact: inContact)
+    }
+
+    private func beginTouch(contactID: Int, point: CGPoint, inContact: Bool) {
+        if touches.isEmpty {
+            // Delay the click until UP so a second contact can promote the gesture to scrolling.
+            touchGesture = .pendingSingle(id: contactID, start: point)
+            touchCentroid = point
+        } else {
+            // A second contact promotes the interaction to scrolling.
+            if case .some(.dragging) = touchGesture { button(0, down: false) }
+            touchGesture = .scrolling
+        }
+        touches[contactID] = TouchContact(point: point, engaged: inContact)
+        touchCentroid = centroid(of: touches)
+    }
+
+    private func finishTouch(contactID: Int, point: CGPoint, canceled: Bool) {
+        switch touchGesture {
+        case let .some(.pendingSingle(id, _)) where id == contactID:
+            if !canceled {
+                move(to: point)
+                button(0, down: true)
+                button(0, down: false)
+            }
+            touchGesture = nil
+        case let .some(.dragging(id)) where id == contactID:
+            button(0, down: false)
+            touchGesture = nil
+        default:
+            break
+        }
+        touches.removeValue(forKey: contactID)
+        if touches.isEmpty {
+            touchGesture = nil
+            touchCentroid = nil
+        } else {
+            touchCentroid = centroid(of: touches)
+        }
+    }
+
+    private func updateTouch(contactID: Int, point: CGPoint, inContact: Bool) {
+        let oldCentroid = centroid(of: touches)
+        touches[contactID] = TouchContact(point: point, engaged: inContact)
+        switch touchGesture {
+        case let .some(.pendingSingle(id, start)) where id == contactID:
+            guard distance(from: start, to: point) > Self.touchMoveThreshold else { return }
+            move(to: start)
+            button(0, down: true)
+            touchGesture = .dragging(id: contactID)
+            move(to: point)
+        case let .some(.dragging(id)) where id == contactID:
+            move(to: point)
+        case .some(.scrolling) where touches.count >= 2:
+            guard let newCentroid = centroid(of: touches),
+                  let previous = touchCentroid ?? oldCentroid else { return }
+            scrollPixels(vertical: -(newCentroid.y - previous.y), horizontal: -(newCentroid.x - previous.x))
+            position = newCentroid
+            touchCentroid = newCentroid
+        default:
+            break
+        }
+    }
+
+    private func distance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+        hypot(lhs.x - rhs.x, lhs.y - rhs.y)
+    }
+
+    private func centroid(of contacts: [Int: TouchContact]) -> CGPoint? {
+        guard !contacts.isEmpty else { return nil }
+        let sum = contacts.values.reduce(CGPoint.zero) { partial, contact in
+            CGPoint(x: partial.x + contact.point.x, y: partial.y + contact.point.y)
+        }
+        let count = CGFloat(contacts.count)
+        return CGPoint(x: sum.x / count, y: sum.y / count)
+    }
+
+    private func scrollPixels(vertical: CGFloat, horizontal: CGFloat) {
+        let dy = Int32(vertical.rounded(.towardZero))
+        let dx = Int32(horizontal.rounded(.towardZero))
+        guard dx != 0 || dy != 0,
+              let event = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
+                                  wheel1: dy, wheel2: dx, wheel3: 0) else { return }
+        event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        event.location = position
+        event.flags = currentFlags
+        poster.post(event)
+    }
+
+    private func releaseTouches() {
+        guard !touches.isEmpty || touchGesture != nil else { return }
+        if case .some(.dragging) = touchGesture {
+            button(0, down: false)
+        }
+        touches.removeAll(keepingCapacity: true)
+        touchGesture = nil
+        touchCentroid = nil
     }
 }

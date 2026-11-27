@@ -169,7 +169,7 @@ final class FileReceiver {
         let free = (try? downloads.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
         guard Int64(total) + 200_000_000 < free else {
-            onStatus("Not enough disk space to receive \(Self.format(total))")
+            onStatus(String(localized: "Not enough disk space to receive \(Self.format(total))"))
             return nil
         }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -191,7 +191,8 @@ final class FileReceiver {
         try? handle?.write(contentsOf: data)
         position += UInt64(data.count)
         done += UInt64(data.count)
-        onStatus("Receiving files: \(Int(Double(done) / Double(max(total, 1)) * 100))% of \(Self.format(total))")
+        onStatus(String(localized:
+            "Receiving files: \(Int(Double(done) / Double(max(total, 1)) * 100))% of \(Self.format(total))"))
         if data.isEmpty || position >= files[index].size {
             nextFile()
         } else {
@@ -248,7 +249,7 @@ final class FileReceiver {
         })
         let urls = tops.sorted().map { folder.appendingPathComponent($0) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
-        onStatus("Received \(files.count) item(s) into Downloads/ClawTank")
+        onStatus(String(localized: "Received ^[\(files.count) item](inflect: true) into Downloads/ClawTank"))
         onFinished(urls)
     }
 

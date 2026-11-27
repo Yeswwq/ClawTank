@@ -7,7 +7,8 @@ import Foundation
 
 struct AuditEntry: Codable, Equatable, Sendable, Identifiable {
     enum Outcome: String, Codable, Sendable {
-        case connected, disconnected, failedLogin, refused, lockedOut, agentAction, agentRefused
+        case connected, disconnected, failedLogin, authenticationFailed, handshakeFailed,
+             refused, lockedOut, agentAction, agentRefused
     }
 
     /// Per loaded entry (agents can log several identical lines within a second).
@@ -35,13 +36,15 @@ struct AuditEntry: Codable, Equatable, Sendable, Identifiable {
 
     var summary: String {
         switch outcome {
-        case .connected: "Connected"
-        case .disconnected: "Disconnected"
-        case .failedLogin: "Failed login"
-        case .refused: "Refused"
-        case .lockedOut: "Locked out"
-        case .agentAction: "Agent action"
-        case .agentRefused: "Agent refused"
+        case .connected: String(localized: "Connected")
+        case .disconnected: String(localized: "Disconnected")
+        case .failedLogin: String(localized: "Failed login")
+        case .authenticationFailed: String(localized: "Authentication failed")
+        case .handshakeFailed: String(localized: "Handshake failed")
+        case .refused: String(localized: "Refused")
+        case .lockedOut: String(localized: "Locked out")
+        case .agentAction: String(localized: "Agent action")
+        case .agentRefused: String(localized: "Agent refused")
         }
     }
 }

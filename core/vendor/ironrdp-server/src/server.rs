@@ -1198,11 +1198,23 @@ impl RdpServer {
                 #[cfg(feature = "egfx")]
                 ServerEvent::Egfx(msg) => match msg {
                     EgfxServerMessage::SendMessages { messages } => {
+                        let message_count = messages.len();
                         let drdynvc_channel_id = self
                             .get_channel_id_by_type::<dvc::DrdynvcServer>()
                             .context("DRDYNVC channel not found")?;
-                        let data = server_encode_svc_messages(messages, drdynvc_channel_id, user_channel_id)?;
-                        writer.write_all(&data).await?;
+                        let data = match server_encode_svc_messages(messages, drdynvc_channel_id, user_channel_id) {
+                            Ok(data) => data,
+                            Err(error) => {
+                                warn!(message_count, %error, "Failed to encode EGFX DVC messages");
+                                return Err(error.into());
+                            }
+                        };
+                        debug!(message_count, wire_bytes = data.len(), "Writing EGFX DVC messages");
+                        if let Err(error) = writer.write_all(&data).await {
+                            warn!(message_count, wire_bytes = data.len(), %error, "Failed to write EGFX DVC messages");
+                            return Err(error.into());
+                        }
+                        debug!(message_count, wire_bytes = data.len(), "EGFX DVC messages written");
                     }
                 },
                 ServerEvent::CliprdrDriveTimeouts => {

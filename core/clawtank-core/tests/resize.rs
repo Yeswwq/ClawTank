@@ -13,6 +13,9 @@ use clawtank_core::server::{self, ServerConfig};
 use clawtank_core::tls::TlsIdentity;
 use clawtank_core::video::SubmitResult;
 use ironrdp_async::FramedWrite as _;
+use ironrdp_connector::Sequence as _;
+use ironrdp_connector::connection_activation::ConnectionActivationState;
+use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_session::ActiveStageOutput;
 use ironrdp_session::image::DecodedImage;
@@ -47,14 +50,20 @@ async fn display_control_resize_restarts_the_surface() {
         server.local_addr(),
         "tester",
         "resize-test-password",
-        1512,
-        982,
+        1440,
+        2560,
         Some(&recorder),
     )
     .await
     .unwrap();
+    let activation_factory = result.activation_factory.clone();
+    let io_channel_id = result.io_channel_id;
+    let user_channel_id = result.user_channel_id;
+    let enable_server_pointer = result.enable_server_pointer;
+    let pointer_software_rendering = result.pointer_software_rendering;
     let mut stage = client::active_stage(result);
-    let mut image = DecodedImage::new(PixelFormat::RgbA32, 1512, 982);
+    let static_channel_chunk_size = stage.static_channel_chunk_size();
+    let mut image = DecodedImage::new(PixelFormat::RgbA32, 1440, 2560);
 
     // Phase machine: wait for video start → first frame → resize → new-size frame.
     let mut step = 0;
@@ -62,8 +71,23 @@ async fn display_control_resize_restarts_the_surface() {
     let deadline = Instant::now() + Duration::from_secs(20);
     while step < 4 && Instant::now() < deadline {
         match step {
-            0 if has(&|e| matches!(e, CoreEvent::VideoStart { .. })) => {
-                assert_eq!(video.submit_h264(IDR, true, 1512, 982), SubmitResult::Sent);
+            0 if has(&|e| {
+                matches!(
+                    e,
+                    CoreEvent::VideoStart {
+                        width: 1440,
+                        height: 2560,
+                        ..
+                    }
+                )
+            }) =>
+            {
+                assert_eq!(
+                    video.session_size(),
+                    (1440, 2560),
+                    "portrait size is committed before video starts"
+                );
+                assert_eq!(video.submit_h264(IDR, true, 1440, 2560), SubmitResult::Sent);
                 step = 1;
             }
             1 if recorder.frame_count() >= 1 => {
@@ -80,13 +104,13 @@ async fn display_control_resize_restarts_the_surface() {
                     CoreEvent::VideoResize {
                         width: 1280,
                         height: 800,
-                        scale_percent: 200
+                        scale_percent: Some(200)
                     }
                 )
             }) =>
             {
                 assert_eq!(
-                    video.submit_h264(P, false, 1512, 982),
+                    video.submit_h264(P, false, 1440, 2560),
                     SubmitResult::NotReady,
                     "stale size refused"
                 );
@@ -106,9 +130,44 @@ async fn display_control_resize_restarts_the_surface() {
             continue;
         };
         let (action, payload) = read.unwrap();
-        for out in stage.process(&mut image, action, &payload).unwrap() {
-            if let ActiveStageOutput::ResponseFrame(bytes) = out {
-                session.write_all(&bytes).await.unwrap();
+        for out in stage.process(&mut image, action, &payload, None).unwrap() {
+            match out {
+                ActiveStageOutput::ResponseFrame(bytes) => {
+                    session.write_all(&bytes).await.unwrap();
+                }
+                ActiveStageOutput::DeactivateAll => {
+                    let mut activation = activation_factory.create();
+                    let mut buffer = WriteBuf::new();
+                    while !activation.state().is_terminal() {
+                        ironrdp_async::single_sequence_step(
+                            &mut session,
+                            &mut activation,
+                            &mut buffer,
+                        )
+                        .await
+                        .unwrap();
+                    }
+
+                    let ConnectionActivationState::Finalized {
+                        desktop_size,
+                        share_id,
+                        ..
+                    } = activation.connection_activation_state()
+                    else {
+                        panic!("deactivation-reactivation sequence did not finalize");
+                    };
+                    assert_eq!((desktop_size.width, desktop_size.height), (1280, 800));
+                    assert!(stage.reactivate(
+                        io_channel_id,
+                        user_channel_id,
+                        share_id,
+                        enable_server_pointer,
+                        pointer_software_rendering,
+                        static_channel_chunk_size,
+                    ));
+                    image = DecodedImage::new(PixelFormat::RgbA32, 1280, 800);
+                }
+                _ => {}
             }
         }
     }

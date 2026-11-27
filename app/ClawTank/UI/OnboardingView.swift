@@ -42,17 +42,21 @@ struct OnboardingView: View {
     @ViewBuilder private var content: some View {
         switch step {
         case .welcome:
-            Header(title: "Welcome to ClawTank", symbol: "display")
-            Text("ClawTank lets you reach this Mac from any standard Remote Desktop client — Windows, " +
-                 "Mac, iPad, iPhone or Linux — with a crisp, fast, full desktop. It works only on your " +
-                 "local network unless you change that, and nothing goes through any cloud.")
+            Header(title: String(localized: "Welcome to ClawTank"), symbol: "display")
+            Text(String(localized: """
+                ClawTank lets you reach this Mac from any standard Remote Desktop client — \
+                Windows, Mac, iPad, iPhone or Linux — with a crisp, fast, full desktop. It works only on your \
+                local network unless you change that, and nothing goes through any cloud.
+                """))
             Text("Setup takes about a minute: two macOS permissions and a password.")
                 .foregroundStyle(.secondary)
         case .screen:
-            Header(title: "Allow Screen Recording", symbol: "rectangle.dashed.badge.record")
-            Text("ClawTank needs to see the screen to send it to your remote client. Click the button, " +
-                 "turn on ClawTank in the list, and come back.")
-            PermissionRow(granted: screenGranted, action: "Open Screen Recording Settings") {
+            Header(title: String(localized: "Allow Screen Recording"), symbol: "rectangle.dashed.badge.record")
+            Text(String(localized: """
+                ClawTank needs to see the screen to send it to your remote client. \
+                Click the button, turn on ClawTank in the list, and come back.
+                """))
+            PermissionRow(granted: screenGranted, action: String(localized: "Open Screen Recording Settings")) {
                 CGRequestScreenCaptureAccess()
                 open("Privacy_ScreenCapture")
             }
@@ -61,22 +65,24 @@ struct OnboardingView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         case .accessibility:
-            Header(title: "Allow Accessibility", symbol: "keyboard")
+            Header(title: String(localized: "Allow Accessibility"), symbol: "keyboard")
             Text("To type and click for you, ClawTank needs Accessibility. Turn on ClawTank in the list.")
-            PermissionRow(granted: accessibilityGranted, action: "Open Accessibility Settings") {
+            PermissionRow(granted: accessibilityGranted, action: String(localized: "Open Accessibility Settings")) {
                 let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
                 _ = AXIsProcessTrustedWithOptions(options)
                 open("Privacy_Accessibility")
             }
         case .password:
-            Header(title: "Choose a Password", symbol: "lock")
-            Text("Your Remote Desktop client will ask for this, with the username **\(server.username)**. " +
-                 "It's separate from your Mac's login password.")
-            PasswordChanger(server: server, finishTitle: "Save Password") { step = .done }
+            Header(title: String(localized: "Choose a Password"), symbol: "lock")
+            Text(String(localized: """
+                Your Remote Desktop client will ask for this, with the username \
+                **\(server.username)**. It's separate from your Mac's login password.
+                """))
+            PasswordChanger(server: server, finishTitle: String(localized: "Save Password")) { step = .done }
             Button("Keep the generated password") { step = .done }
                 .buttonStyle(.link)
         case .done:
-            Header(title: "You're Ready", symbol: "checkmark.seal")
+            Header(title: String(localized: "You're Ready"), symbol: "checkmark.seal")
             ConnectionDetails(server: server)
             Divider()
             ConnectGuide(address: server.address, username: server.username,
@@ -142,14 +148,17 @@ struct ConnectionDetails: View {
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-            row("Address", server.address) { server.copyAddress() }
-            row("Username", server.username) { copy(server.username) }
-            row("Password", revealed ? server.password : String(repeating: "•", count: 12)) { server.copyPassword() }
+            row(String(localized: "Address"), server.address) { server.copyAddress() }
+            row(String(localized: "Username"), server.username) { copy(server.username) }
+            row(String(localized: "Password"),
+                revealed ? server.password : String(repeating: "•", count: 12)) { server.copyPassword() }
             GridRow {
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                 Toggle("Show password", isOn: $revealed).toggleStyle(.checkbox)
             }
-            row("Certificate", String(server.fingerprint.prefix(47)) + "…") { server.copyFingerprint() }
+            row(String(localized: "Certificate"), String(server.fingerprint.prefix(47)) + "…") {
+                server.copyFingerprint()
+            }
         }
     }
 
@@ -183,6 +192,8 @@ struct PasswordChanger: View {
         VStack(alignment: .leading, spacing: 8) {
             SecureField("New password", text: $first).textContentType(.newPassword)
             SecureField("Repeat password", text: $second).textContentType(.newPassword)
+            Text("Use at least 8 characters, including uppercase, lowercase, and a special character.")
+                .font(.callout).foregroundStyle(.secondary)
             if !first.isEmpty {
                 ForEach(problems, id: \.self) { problem in
                     Label(PasswordPolicy.message(for: problem), systemImage: "exclamationmark.circle")

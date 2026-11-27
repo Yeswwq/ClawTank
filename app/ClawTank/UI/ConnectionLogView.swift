@@ -19,10 +19,13 @@ struct ConnectionLogView: View {
                         .foregroundStyle(color(entry.outcome))
                 }
                 .width(min: 110, ideal: 120)
-                TableColumn("Detail") { Text($0.detail ?? "").lineLimit(1).help($0.detail ?? "") }
+                TableColumn("Detail") { entry in
+                    let detail = localizedDetail(entry.detail)
+                    Text(detail).lineLimit(1).help(detail)
+                }
             }
             HStack {
-                Text("\(entries.count) entries").foregroundStyle(.secondary)
+                Text("^[\(entries.count) entry](inflect: true)").foregroundStyle(.secondary)
                 Spacer()
                 Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([audit.url]) }
                 Button("Refresh") { reload() }.keyboardShortcut("r")
@@ -37,11 +40,27 @@ struct ConnectionLogView: View {
         entries = audit.entries()
     }
 
+    private func localizedDetail(_ detail: String?) -> String {
+        guard let detail else { return "" }
+        switch detail {
+        case "Wrong username or password": return String(localized: "Wrong username or password")
+        case "Client closed the connection": return String(localized: "Client closed the connection")
+        case "TLS handshake failed (client may have rejected the certificate)":
+            return String(localized: "TLS handshake failed (client may have rejected the certificate)")
+        case "lan-only": return String(localized: "Local network only")
+        case "allowlist": return String(localized: "Not on the allowlist")
+        case "locked-out": return String(localized: "Locked out")
+        default: return detail
+        }
+    }
+
     private func symbol(_ outcome: AuditEntry.Outcome) -> String {
         switch outcome {
         case .connected: "checkmark.circle"
         case .disconnected: "xmark.circle"
         case .failedLogin: "exclamationmark.triangle"
+        case .authenticationFailed: "key.slash"
+        case .handshakeFailed: "network.badge.shield.half.filled"
         case .refused: "hand.raised"
         case .lockedOut: "lock"
         case .agentAction: "cursorarrow.rays"
@@ -52,7 +71,7 @@ struct ConnectionLogView: View {
     private func color(_ outcome: AuditEntry.Outcome) -> Color {
         switch outcome {
         case .connected, .disconnected, .agentAction: .primary
-        case .failedLogin, .refused, .agentRefused: .orange
+        case .failedLogin, .authenticationFailed, .handshakeFailed, .refused, .agentRefused: .orange
         case .lockedOut: .red
         }
     }

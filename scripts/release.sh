@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds release artifacts from an already-built ClawTank.app:
-#   dist/ClawTank-<version>-<arch>.dmg, dist/clawtank-mcp-<version>-arm64.mcpb, dist/server.json,
+#   dist/ClawTank-<version>-<arch>.dmg, dist/clawtank-mcp-<version>-<arch>.mcpb, dist/server.json,
 #   dist/SHA256SUMS, dist/RELEASE_NOTES.md
 # and verifies them (DMG integrity, signature, architecture, versions).
 #
@@ -16,6 +16,15 @@ app="$2"
 [[ -d "$app" ]] || { echo "error: $app not found" >&2; exit 1; }
 cd "$(dirname "$0")/.."
 
+repo_url="$(git remote get-url origin 2>/dev/null || true)"
+case "$repo_url" in
+    git@github.com:*) repo_url="https://github.com/${repo_url#git@github.com:}" ;;
+    ssh://git@github.com/*) repo_url="https://github.com/${repo_url#ssh://git@github.com/}" ;;
+    https://github.com/*) ;;
+    *) repo_url="https://github.com/HMAKT99/ClawTank" ;;
+esac
+repo_url="${repo_url%.git}"
+
 plist="$app/Contents/Info.plist"
 app_version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$plist")"
 [[ "$app_version" == "$version" ]] || {
@@ -24,8 +33,22 @@ app_version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$p
 }
 grep -q "^## \[$version\]" CHANGELOG.md || { echo "error: CHANGELOG.md has no [$version] section" >&2; exit 1; }
 
-arch="$(lipo -archs "$app/Contents/MacOS/ClawTank" | tr ' ' '+')"
-dmg="dist/ClawTank-$version-${arch/x86_64+arm64/universal}.dmg"
+raw_archs="$(lipo -archs "$app/Contents/MacOS/ClawTank")"
+arch_key="$(printf '%s\n' "$raw_archs" | tr ' ' '\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+case "$arch_key" in
+    arm64|x86_64) arch="$arch_key" ;;
+    "arm64 x86_64") arch=universal ;;
+    *) echo "error: unsupported app architecture: $raw_archs" >&2; exit 1 ;;
+esac
+arch_key="$arch"
+mcp_archs="$(lipo -archs "$app/Contents/MacOS/clawtank-mcp")"
+mcp_arch_key="$(printf '%s\n' "$mcp_archs" | tr ' ' '\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+[[ "$mcp_arch_key" == "arm64 x86_64" ]] && mcp_arch_key=universal
+[[ "$mcp_arch_key" == "$arch_key" ]] || {
+    echo "error: app architecture ($raw_archs) != MCP architecture ($mcp_archs)" >&2
+    exit 1
+}
+dmg="dist/ClawTank-$version-$arch.dmg"
 rm -rf dist && mkdir -p dist
 
 if [[ -n "${CLAWTANK_SIGN_IDENTITY:-}" ]]; then
@@ -61,7 +84,7 @@ trap - EXIT
 rmdir "$mount"
 
 # The MCP server as an MCP Bundle for Claude Desktop and the MCP Registry (docs/releasing.md).
-mcpb="dist/clawtank-mcp-$version-arm64.mcpb"
+mcpb="dist/clawtank-mcp-$version-$arch.mcpb"
 scripts/package-mcpb.sh "$version" "$app/Contents/MacOS/clawtank-mcp" "$mcpb" >/dev/null
 
 (cd dist && shasum -a 256 "$(basename "$dmg")" "$(basename "$mcpb")" > SHA256SUMS)
@@ -72,7 +95,7 @@ scripts/package-mcpb.sh "$version" "$app/Contents/MacOS/clawtank-mcp" "$mcpb" >/
     echo
     # The summary above the per-phase "###" details; the full list stays in CHANGELOG.md.
     awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^##/ {exit} on' CHANGELOG.md
-    echo "Full list of changes: [CHANGELOG.md](https://github.com/HMAKT99/ClawTank/blob/v$version/CHANGELOG.md)."
+    echo "Full list of changes: [CHANGELOG.md]($repo_url/blob/v$version/CHANGELOG.md)."
     echo
     echo "## Install"
     echo
@@ -86,7 +109,12 @@ scripts/package-mcpb.sh "$version" "$app/Contents/MacOS/clawtank-mcp" "$mcpb" >/
     fi
     echo "3. Follow the setup window: Screen Recording, Accessibility and a password, then connect from any RDP client."
     echo
-    echo "Requires macOS 14 Sonoma or later on $( [[ "$arch" == arm64 ]] && echo "Apple silicon" || echo "$arch" )."
+    case "$arch" in
+        arm64) platform="Apple silicon" ;;
+        x86_64) platform="Intel" ;;
+        universal) platform="Apple silicon and Intel" ;;
+    esac
+    echo "Requires macOS 14 Sonoma or later on $platform."
     echo
     echo "SHA-256: \`$(head -1 dist/SHA256SUMS | cut -d' ' -f1)\`"
 } > dist/RELEASE_NOTES.md

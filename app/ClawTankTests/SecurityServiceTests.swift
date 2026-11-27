@@ -36,6 +36,10 @@ final class SecurityServiceTests: XCTestCase {
         let passwords = try (0..<20).map { _ in try SecurityService.generatePassword() }
         XCTAssertEqual(Set(passwords).count, passwords.count)
         XCTAssertTrue(passwords.allSatisfy { $0.allSatisfy(alphabet.contains) })
+        XCTAssertTrue(passwords.allSatisfy { PasswordPolicy.problems($0, username: "").isEmpty })
+        XCTAssertThrowsError(try SecurityService.generatePassword(length: 7)) {
+            XCTAssertEqual($0 as? SecurityError, .invalidPasswordLength)
+        }
     }
 
     func testFileStoreRoundTripsWithOwnerOnlyPermissions() throws {

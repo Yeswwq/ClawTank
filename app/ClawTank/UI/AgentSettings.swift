@@ -13,10 +13,12 @@ struct AgentSettings: View {
         Form {
             Section {
                 Toggle("Allow AI agents to control this Mac", isOn: $settings.agentAPIEnabled)
-                Text("Agents on this Mac can take screenshots, move the mouse, type and open apps through a local "
-                     + "API (127.0.0.1 only, never the network). Each agent needs its own token. Every action is "
-                     + "written to the connection log, a badge shows while an agent is in control, and a person "
-                     + "using the Mac over RDP always takes priority.")
+                Text(String(localized: """
+                    Agents on this Mac can take screenshots, move the mouse, type and open apps through a local API
+                    (127.0.0.1 only, never the network). Each agent needs its own token. Every action is written to the
+                    connection log, a badge shows while an agent is in control, and a person using the Mac over RDP
+                    always takes priority.
+                    """))
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 LabeledContent("Status", value: statusText)
                 TextField("Port", value: $settings.agentPort, format: .number.grouping(.never))
@@ -52,8 +54,11 @@ struct AgentSettings: View {
                 }
             }
             Section("Connect an MCP agent") {
-                Text("For Claude Code (other MCP clients: run the same binary over stdio with the token in "
-                     + "CLAWTANK_AGENT_TOKEN):").font(.callout)
+                Text(String(localized: """
+                    For Claude Code (other MCP clients: run the same binary over stdio with the token in
+                    CLAWTANK_AGENT_TOKEN):
+                    """))
+                    .font(.callout)
                 Text(agents.setupCommand).font(.caption.monospaced()).textSelection(.enabled)
                 Button("Copy Command") {
                     ServerController.copyToPasteboard(agents.setupCommand.replacingOccurrences(
@@ -66,14 +71,16 @@ struct AgentSettings: View {
 
     private var statusText: String {
         switch agents.status {
-        case .off: "Off"
-        case .listening(let port): "Listening on 127.0.0.1:\(port)"
-        case .failed(let message): "Couldn't start: \(message)"
+        case .off: String(localized: "Off")
+        case .listening(let port): String(localized: "Listening on 127.0.0.1:\(port)")
+        case .failed(let message): String(localized: "Couldn't start: \(message)")
         }
     }
 
     private func detail(_ token: AgentToken) -> String {
-        let created = "Created " + token.created.formatted(date: .abbreviated, time: .shortened)
-        return created + (token.lastUsed.map { " · last used " + $0.formatted(.relative(presentation: .named)) } ?? "")
+        let created = token.created.formatted(date: .abbreviated, time: .shortened)
+        guard let lastUsed = token.lastUsed else { return String(localized: "Created \(created)") }
+        let lastUsedText = lastUsed.formatted(.relative(presentation: .named))
+        return String(localized: "Created \(created) · last used \(lastUsedText)")
     }
 }

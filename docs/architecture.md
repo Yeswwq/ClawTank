@@ -2,7 +2,7 @@
 
 ClawTank has two halves joined by a small C ABI:
 
-- **`libclawtank_core.a` (Rust):** the RDP protocol, built on [IronRDP](https://github.com/Devolutions/IronRDP) 0.13. It covers TLS, NLA, the graphics pipeline, virtual channels and the access policy. It never calls macOS APIs.
+- **`libclawtank_core.a` (Rust):** the RDP protocol, built on [IronRDP](https://github.com/Devolutions/IronRDP), pinned to upstream revision `475e5d534f0afa080e51b940caf3d7c1f9d6ec6c` (server 0.14, EGFX 0.5, core 0.3.1, PDU 0.11). It covers TLS, NLA, the graphics pipeline, virtual channels and the access policy. It never calls macOS APIs.
 - **`ClawTank.app` (Swift, SwiftUI menu-bar app):** everything specific to macOS: capture, encoding, input injection, virtual displays, the Keychain and the UI. It never parses RDP.
 
 This split is ADR-001 and ADR-002 in [decisions.md](decisions.md). The boundary lives in `core/clawtank-core/src/ffi.rs`, and `core/include/clawtank_core.h` is generated from it by cbindgen. On the Swift side the boundary is `app/ClawTank/CoreBridge.swift`.
@@ -29,7 +29,8 @@ flowchart LR
   end
   MCP["clawtank-mcp<br/>(stdio MCP server)"]
 
-  Client <-->|TCP 3389| ACC --> SRV
+  Client <-->|TCP 3389 control + fallback| ACC --> SRV
+  Client <-.->|UDP 3389 EGFX sideband| SRV
   SRV --- GFX & CH & IN
   GFX & CH & IN <--> FFI <--> VID & AUD & INP
   VID --- DSP
@@ -41,9 +42,20 @@ flowchart LR
 
 **Video.**
 1. `ScreenCapture.swift` captures one display with ScreenCaptureKit. Frames are IOSurface-backed and arrive only when the screen changes.
-2. `H264Encoder.swift` encodes them with VideoToolbox: low-latency H.264, 4:2:0.
+2. `H264Encoder.swift` encodes them with VideoToolbox: hardware H.264, 4:2:0. It requests low-latency rate control when supported and falls back to standard hardware encoding if the encoder rejects that specification.
 3. The Annex-B access unit goes through the C ABI as a pointer and length.
-4. `video.rs` sends it as an EGFX AVC420 frame.
+4. `video.rs` sends it as an EGFX AVC420 frame. The TLS-authenticated session
+   starts on TCP. When the client advertises reliable UDP and Soft-Sync
+   support, IronRDP tries an RDPEUDP2 sideband on the same UDP port. Only the
+   EGFX dynamic channel moves to that tunnel; DRDYNVC control, input, display
+   control, audio and clipboard stay on TCP. If UDP is unsupported or the
+   sideband cannot be established, the whole EGFX path remains on TCP.
+
+If the confirmed EGFX capability disables AVC, the server selects RemoteFX Progressive
+when that capability permits it, encodes BGRA tiles in Rust, and sends `WireToSurface2`.
+The legacy RDP bitmap mailbox is retained as the final fallback when neither path is
+available. The selected path comes only from the final capability exchange, not from a
+client name or platform guess.
 
 Backpressure is applied before encoding, in `VideoSession.swift`: if the core wouldn't send a frame, the frame isn't encoded. `AdaptiveBitrate.swift` tunes the bit rate once a second, using the core's frame-acknowledgement timing.
 
@@ -67,7 +79,7 @@ Live resize arrives through the Display Control channel (`resize` in the core) a
 | Layer | Where | What |
 |---|---|---|
 | Before any handshake | `access.rs` | Lockout (5 failures in 5 min), optional allowlist, LAN-only (private, link-local, CGNAT/Tailscale and ULA ranges) |
-| Transport | `tls.rs`, `server.rs` | TLS always, with a stable self-signed RSA-2048 identity verified by its SHA-256 fingerprint |
+| Transport | `tls.rs`, `server.rs` | TLS always, over the main TCP connection and the optional RDPEUDP2 sideband, with the same stable self-signed RSA-2048 identity |
 | Authentication | IronRDP CredSSP | NLA required, with a dedicated ClawTank password, not the macOS one (ADR-003) |
 | Secrets | `SecurityService.swift` | Keychain for signed builds; an owner-only 0600 file for ad-hoc builds (ADR-013) |
 | Accountability | `AuditLog.swift` | JSON-lines log of every connection, failure and agent action, rotated, viewable in the app |
@@ -86,7 +98,7 @@ ClawTank makes no outgoing network connections and sends no telemetry.
 |---|---|
 | `core/clawtank-core/` | Rust protocol core: `src/` (modules above), `tests/` (end-to-end tests with IronRDP's client), `examples/` (`probe`, `testserver`, `files_demo`) |
 | `core/clawtank-mcp/` | The MCP server for agents |
-| `core/vendor/ironrdp-server/` | IronRDP server with small patches; see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
+| `core/vendor/` | Historical IronRDP 0.13/0.3 patched source retained for reference; excluded from the workspace and not used by the current Cargo dependency graph |
 | `app/` | XcodeGen project (`project.yml`), the Swift app (`ClawTank/`) and XCTest (`ClawTankTests/`) |
 | `scripts/` | Signing, DMG packaging, release |
 | `tests/` | FreeRDP interop smoke test (run in CI on Linux) |

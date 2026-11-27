@@ -134,6 +134,7 @@ struct TLSIdentity: Equatable, Sendable {
 enum SecurityError: Error, Equatable {
     case identityGenerationFailed
     case randomGenerationFailed
+    case invalidPasswordLength
 }
 
 final class SecurityService: Sendable {
@@ -143,8 +144,12 @@ final class SecurityService: Sendable {
         static let password = "rdp-password"
     }
 
-    /// Unambiguous characters (no 0/O, 1/l/I) so the password is easy to read off the screen.
-    static let passwordAlphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789")
+    /// Unambiguous characters (no 0/O, 1/l/I) plus safe punctuation so the generated password
+    /// meets the same mixed-character policy used by user-selected passwords.
+    static let uppercaseAlphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ")
+    static let lowercaseAlphabet = Array("abcdefghijkmnopqrstuvwxyz")
+    static let specialAlphabet = Array("!@#$%^&*+-=?")
+    static let passwordAlphabet = uppercaseAlphabet + lowercaseAlphabet + Array("23456789") + specialAlphabet
     static let passwordLength = 20
 
     private let store: SecretStore
@@ -191,18 +196,39 @@ final class SecurityService: Sendable {
 
     /// Uniformly random password from `passwordAlphabet` (rejection sampling, no modulo bias).
     static func generatePassword(length: Int = passwordLength) throws -> String {
-        let alphabet = passwordAlphabet
-        let limit = 256 - (256 % alphabet.count)
-        var result: [Character] = []
-        var buffer = [UInt8](repeating: 0, count: 64)
+        guard length >= PasswordPolicy.minimumLength else { throw SecurityError.invalidPasswordLength }
+        var result = [
+            try randomCharacter(from: uppercaseAlphabet),
+            try randomCharacter(from: lowercaseAlphabet),
+            try randomCharacter(from: specialAlphabet)
+        ]
         while result.count < length {
-            guard SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer) == errSecSuccess else {
-                throw SecurityError.randomGenerationFailed
-            }
-            for byte in buffer where Int(byte) < limit && result.count < length {
-                result.append(alphabet[Int(byte) % alphabet.count])
+            result.append(try randomCharacter(from: passwordAlphabet))
+        }
+        // Fisher-Yates with the same unbiased random index helper keeps the required classes
+        // from appearing in a predictable prefix.
+        if result.count > 1 {
+            for index in stride(from: result.count - 1, through: 1, by: -1) {
+                let swapIndex = try randomIndex(upperBound: index + 1)
+                result.swapAt(index, swapIndex)
             }
         }
         return String(result)
+    }
+
+    private static func randomCharacter(from alphabet: [Character]) throws -> Character {
+        alphabet[try randomIndex(upperBound: alphabet.count)]
+    }
+
+    private static func randomIndex(upperBound: Int) throws -> Int {
+        guard upperBound > 0 else { throw SecurityError.randomGenerationFailed }
+        let limit = 256 - (256 % upperBound)
+        var byte: UInt8 = 0
+        repeat {
+            guard SecRandomCopyBytes(kSecRandomDefault, 1, &byte) == errSecSuccess else {
+                throw SecurityError.randomGenerationFailed
+            }
+        } while Int(byte) >= limit
+        return Int(byte) % upperBound
     }
 }

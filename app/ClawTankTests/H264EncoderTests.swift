@@ -34,10 +34,30 @@ enum SyntheticFrames {
 
 /// Collects encoder output thread-safely.
 final class FrameSink: @unchecked Sendable {
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var frames: [EncodedFrame] = []
-    func append(_ frame: EncodedFrame) { lock.withLock { frames.append(frame) } }
-    var all: [EncodedFrame] { lock.withLock { frames } }
+    func append(_ frame: EncodedFrame) {
+        condition.lock()
+        frames.append(frame)
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    var all: [EncodedFrame] {
+        condition.lock()
+        defer { condition.unlock() }
+        return frames
+    }
+
+    func waitForCount(_ count: Int, timeout: TimeInterval = 2) -> Bool {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        condition.lock()
+        defer { condition.unlock() }
+        while frames.count < count {
+            guard condition.wait(until: deadline) else { break }
+        }
+        return frames.count >= count
+    }
 }
 
 /// NAL unit types in an Annex-B access unit (4-byte start codes, as the encoder emits).
@@ -76,6 +96,7 @@ final class H264EncoderTests: XCTestCase {
             encoder.encode(SyntheticFrames.make(width: 640, height: 368, index: index),
                            presentationTime: CMTime(value: CMTimeValue(index), timescale: 60),
                            forceKeyframe: index == 6)
+            XCTAssertTrue(sink.waitForCount(index + 1), "encoder did not emit frame \(index)")
         }
         encoder.flush()
         let frames = sink.all
@@ -102,11 +123,203 @@ final class H264EncoderTests: XCTestCase {
             H264Encoder.Settings.defaultBitRate(width: 640, height: 368, frameRate: 60), 2_000_000)
     }
 
+    func testAVCCConversionRejectsTruncatedAccessUnits() {
+        let truncatedNAL: [UInt8] = [0, 0, 0, 3, 0x65, 0x88]
+        var output = Data()
+        truncatedNAL.withUnsafeBufferPointer {
+            XCTAssertFalse(H264Encoder.appendAVCCNALUnits(from: $0, headerLength: 4, to: &output))
+        }
+        XCTAssertTrue(output.isEmpty, "a rejected access unit must not expose a partial bitstream")
+
+        let truncatedHeader: [UInt8] = [0, 0]
+        output.removeAll(keepingCapacity: true)
+        truncatedHeader.withUnsafeBufferPointer {
+            XCTAssertFalse(H264Encoder.appendAVCCNALUnits(from: $0, headerLength: 4, to: &output))
+        }
+        XCTAssertTrue(output.isEmpty)
+    }
+
+    func testAVCCConversionAcceptsCompleteAccessUnit() {
+        let avcc: [UInt8] = [0, 0, 0, 2, 0x65, 0x88, 0, 0, 0, 1, 0x06]
+        var output = Data()
+        avcc.withUnsafeBufferPointer {
+            XCTAssertTrue(H264Encoder.appendAVCCNALUnits(from: $0, headerLength: 4, to: &output))
+        }
+        XCTAssertEqual(Array(output), [0, 0, 0, 1, 0x65, 0x88, 0, 0, 0, 1, 0x06])
+    }
+
+    func testKeyframeRecoveryStateKeepsPFramesAfterSuccessfulKeyframe() {
+        var state = VideoSession.KeyframeRecoveryState()
+        XCTAssertTrue(state.needsKeyframe)
+
+        state.submission(frameIsKeyframe: true, result: .sent)
+        XCTAssertFalse(state.needsKeyframe)
+
+        state.submission(frameIsKeyframe: false, result: .sent)
+        XCTAssertFalse(state.needsKeyframe, "successful P-frames preserve the active reference chain")
+
+        state.encoderFailed()
+        XCTAssertTrue(state.needsKeyframe)
+
+        state.submission(frameIsKeyframe: false, result: .sent)
+        XCTAssertTrue(state.needsKeyframe)
+        state.submission(frameIsKeyframe: true, result: .needKeyframe)
+        XCTAssertTrue(state.needsKeyframe)
+        state.submission(frameIsKeyframe: true, result: .sent)
+        XCTAssertFalse(state.needsKeyframe)
+
+        state.submission(frameIsKeyframe: false, result: .notReady)
+        XCTAssertFalse(state.needsKeyframe, "a deferred frame does not break the active reference chain")
+        state.submission(frameIsKeyframe: true, result: .sent)
+        XCTAssertFalse(state.needsKeyframe)
+        state.clientResumed()
+        XCTAssertTrue(state.needsKeyframe, "client refresh invalidates the old reference chain")
+    }
+
+    func testCachedFrameCanBeReplayedWithIncreasingPresentationTimes() {
+        var cache = CachedVideoFrame()
+        let buffer = SyntheticFrames.make(width: 640, height: 368, index: 0)
+        let capturedTime = CMTime(value: 10, timescale: 60)
+        XCTAssertEqual(cache.capture(buffer, at: capturedTime, frameRate: 60), capturedTime)
+
+        let firstReplay = cache.replay(frameRate: 60)
+        let secondReplay = cache.replay(frameRate: 60)
+
+        XCTAssertNotNil(firstReplay?.0)
+        XCTAssertEqual(firstReplay?.1, CMTime(value: 11, timescale: 60))
+        XCTAssertEqual(secondReplay?.1, CMTime(value: 12, timescale: 60))
+        cache.clear()
+        XCTAssertNil(cache.replay(frameRate: 60), "stop releases the retained pixel buffer")
+    }
+
+    func testFrameGenerationDropsOlderPFramesAfterForcedKeyframe() {
+        var generation = VideoFrameGeneration()
+        let first = generation.submitted(keyframe: true)
+        let staleP = generation.submitted(keyframe: false)
+        let resumeIdr = generation.submitted(keyframe: true)
+
+        XCTAssertEqual(first, 1)
+        XCTAssertEqual(staleP, 1)
+        XCTAssertEqual(resumeIdr, 2)
+        XCTAssertFalse(generation.delivered(keyframe: false, generation: first),
+                       "pre-IDR output is stale")
+        XCTAssertTrue(generation.delivered(keyframe: true, generation: resumeIdr))
+        XCTAssertTrue(generation.delivered(keyframe: false, generation: resumeIdr))
+    }
+
+    func testSessionCreationErrorIncludesVideoToolboxStatus() {
+        let error = EncoderError.sessionCreation(kVTParameterErr)
+        XCTAssertTrue(error.errorDescription?.contains("-12902") == true)
+        XCTAssertTrue(error.errorDescription?.contains("kVTParameterErr") == true)
+    }
+
+    func testVideoToolboxMalfunctionRequiresSessionRebuild() {
+        XCTAssertTrue(EncoderError.encodeFrame(kVTVideoEncoderMalfunctionErr).requiresSessionRebuild)
+        XCTAssertTrue(EncoderError.encodeFrame(kVTInvalidSessionErr).requiresSessionRebuild)
+        XCTAssertFalse(EncoderError.encodeFrame(kVTVideoEncoderNotAvailableNowErr).requiresSessionRebuild)
+        XCTAssertFalse(EncoderError.annexBConversion.requiresSessionRebuild)
+    }
+
+    func testHardwareEncoderReportsSelectedImplementation() throws {
+        let sink = FrameSink()
+        let settings = H264Encoder.Settings(width: 640, height: 368, averageBitRate: 4_000_000,
+                                            requireHardware: true, lowLatencyRateControl: true)
+        let encoder: H264Encoder
+        do {
+            encoder = try H264Encoder(settings: settings) { sink.append($0) }
+        } catch let error as EncoderError {
+            guard case let .sessionCreation(status) = error,
+                  status == kVTCouldNotFindVideoEncoderErr else { throw error }
+            throw XCTSkip("This host has no hardware H.264 encoder")
+        }
+
+        XCTAssertNotEqual(encoder.encoderID, "unknown")
+        if let hardware = encoder.isHardwareAccelerated {
+            XCTAssertTrue(hardware)
+        }
+        if encoder.encoderID.contains("nvmtl") {
+            XCTAssertFalse(encoder.lowLatencyRateControlEnabled,
+                           "NVMTL currently rejects VideoToolbox low-latency rate control")
+        }
+
+        encoder.encode(SyntheticFrames.make(width: 640, height: 368, index: 0),
+                       presentationTime: CMTime(value: 0, timescale: 60), forceKeyframe: true)
+        encoder.flush()
+        XCTAssertFalse(sink.all.isEmpty, "hardware encoder should emit a frame")
+    }
+
     func testVideoStatsFormatting() {
         let text = ServerController.formatVideoStats(fps: 60, bytesPerSecond: 1_500_000, encodeMs: 3.14, skipped: 0)
-        XCTAssertEqual(text, "60 fps · 12.0 Mbit/s · enc 3.1 ms")
-        XCTAssertTrue(ServerController.formatVideoStats(fps: 1, bytesPerSecond: 0, encodeMs: 0, skipped: 2)
-                        .hasSuffix("2 skipped"))
+        let expected = String(localized: """
+            60 fps · \(12.0, format: .number.precision(.fractionLength(1))) Mbit/s · \
+            encoding \(3.14, format: .number.precision(.fractionLength(1))) ms
+            """)
+        XCTAssertEqual(text, expected)
+        let skipped = ServerController.formatVideoStats(fps: 1, bytesPerSecond: 0, encodeMs: 0, skipped: 2)
+        XCTAssertTrue(skipped.contains("2"))
+        let adaptive = ServerController.formatAdaptiveVideoStats(ackDelayMs: 12, targetBitrate: 2_500_000,
+                                                                 acknowledgedGoodputBps: 1_200_000,
+                                                                 congested: true)
+        XCTAssertTrue(adaptive.contains("12"))
+        XCTAssertTrue(adaptive.contains("1.2"))
+        XCTAssertTrue(adaptive.contains("2.5"))
+        XCTAssertTrue(adaptive.contains(String(localized: "Congested")))
+        let pending = ServerController.formatAdaptiveVideoStats(ackDelayMs: 0, targetBitrate: 2_500_000,
+                                                                congested: false)
+        XCTAssertEqual(pending.components(separatedBy: String(localized: "pending")).count - 1, 2)
+    }
+
+    func testConnectionDiagnosticsFormattingNamesPendingAndSelectedFacts() {
+        var state = RdpServer.RdpDiagnostics()
+        state.width = 2316
+        state.height = 1080
+        state.scalePercent = 200
+        state.deviceScalePercent = 180
+        state.monitorCount = 1
+        state.transport = "tcp"
+        let pending = ServerController.formatDiagnosticsOverlay(state, connected: true)
+        XCTAssertTrue(pending.contains("2316x1080"))
+        XCTAssertTrue(pending.contains("200%"))
+        XCTAssertTrue(state.selectedVideoPath == nil)
+        XCTAssertTrue(state.clientCapabilitiesKnown == false)
+        XCTAssertTrue(pending.contains("TCP"))
+
+        state.clientCapabilitiesKnown = true
+        state.clientSupportsUDPFECR = true
+        state.clientSupportsSoftSync = true
+        state.multitransportOffered = true
+        state.multitransportResponse = true
+        state.egfxOpen = true
+        state.egfxChannelID = 7
+        state.egfxCapabilityVersion = 0x0a04_0000
+        state.selectedVideoPath = "RemoteFXProgressive"
+        state.legacyImageRemoteFX = true
+        state.legacyNSCodec = true
+        state.legacySelectedCodec = "NSCodec"
+        state.clientEarlyCapabilityFlags = 0x190
+        state.clientInfoFlags = 0x213_435
+        state.performanceFlags = 6
+        state.clientQueueDepth = 3
+        state.clientFramesDecoded = 42
+        state.clientDecodeRenderMilliseconds = 17
+        state.clientQoEReports = 2
+        state.networkRTTMilliseconds = 18
+        state.networkBaselineRTTMilliseconds = 14
+        state.networkBandwidthKilobitsPerSecond = 125_000
+        state.transport = "udp"
+        let selected = ServerController.formatDiagnosticsOverlay(state, connected: true)
+        XCTAssertTrue(selected.contains("RemoteFXProgressive"))
+        XCTAssertTrue(selected.contains("NSCodec"))
+        XCTAssertTrue(selected.contains("UDP"))
+        let selectedLower = selected.lowercased()
+        XCTAssertTrue(selectedLower.contains("supported") || selected.contains("支持"))
+        XCTAssertTrue(selectedLower.contains("accepted") || selected.contains("已接受"))
+        XCTAssertTrue(selected.contains("42"))
+        XCTAssertTrue(selected.contains("17 ms"))
+        XCTAssertTrue(selected.contains("18"))
+        XCTAssertTrue(selected.contains("0.1"))
+        XCTAssertTrue(selected.contains("AutoDetect"))
+        XCTAssertFalse(selected.contains("Client formats: none advertised"))
     }
 }
 

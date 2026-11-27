@@ -17,6 +17,8 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         var codedWidth: Int
         var codedHeight: Int
         var frameRate: Int = 60
+        /// Output pixel format. AVC420 uses NV12; legacy bitmap fallback uses BGRA.
+        var pixelFormat: OSType = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         /// Off when the client draws the cursor itself from shapes we send (Phase 3).
         var showsCursor = false
         /// Display size in points; content is fitted (aspect preserved, centred) into the session.
@@ -55,9 +57,13 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         cfg.destinationRect = config.contentRect
         cfg.scalesToFit = true
         cfg.preservesAspectRatio = false
-        cfg.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-        cfg.colorMatrix = kCVImageBufferYCbCrMatrix_ITU_R_709_2
-        cfg.colorSpaceName = CGColorSpace.sRGB
+        cfg.pixelFormat = config.pixelFormat
+        if config.pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange {
+            cfg.colorMatrix = kCVImageBufferYCbCrMatrix_ITU_R_709_2
+            cfg.colorSpaceName = CGColorSpace.sRGB
+        } else if config.pixelFormat == kCVPixelFormatType_32BGRA {
+            cfg.colorSpaceName = CGColorSpace.sRGB
+        }
         cfg.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(config.frameRate))
         cfg.queueDepth = 4
         cfg.showsCursor = config.showsCursor
@@ -68,6 +74,12 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     /// Captures `displayID`. A just-created virtual display can take a moment to show up in
     /// ScreenCaptureKit, so look for it for up to two seconds.
     func start(_ config: Configuration, displayID: CGDirectDisplayID) async throws {
+        let startMessage = """
+            Preparing ScreenCaptureKit display=\(displayID) \
+            content=\(config.contentWidth)x\(config.contentHeight) \
+            coded=\(config.codedWidth)x\(config.codedHeight) fps=\(config.frameRate)
+            """
+        log.info("\(startMessage, privacy: .public)")
         var found: SCDisplay?
         for _ in 0..<20 {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -75,18 +87,32 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             if found != nil { break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-        guard let display = found else { throw CaptureError.noDisplay }
+        guard let display = found else {
+            log.error("ScreenCaptureKit display=\(displayID) not found after discovery retries")
+            throw CaptureError.noDisplay
+        }
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let stream = SCStream(filter: filter, configuration: Self.streamConfiguration(config), delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
-        try await stream.startCapture()
         self.stream = stream
-        log.info("Capturing display \(display.displayID) → \(config.codedWidth)x\(config.codedHeight)")
+        do {
+            try await stream.startCapture()
+        } catch {
+            if self.stream === stream { self.stream = nil }
+            try? await stream.stopCapture()
+            let errorMessage = "ScreenCaptureKit startCapture failed: \(error.localizedDescription)"
+            log.error("\(errorMessage, privacy: .public)")
+            throw error
+        }
+        let startedMessage = "ScreenCaptureKit capture started display=\(display.displayID) "
+            + "coded=\(config.codedWidth)x\(config.codedHeight)"
+        log.info("\(startedMessage, privacy: .public)")
     }
 
     func stop() async {
         guard let stream else { return }
         self.stream = nil
+        log.info("ScreenCaptureKit capture stopping")
         do {
             try await stream.stopCapture()
         } catch {

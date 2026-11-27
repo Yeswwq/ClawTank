@@ -40,10 +40,11 @@ Format: context → decision → consequences. Newest last. Status is *Accepted*
 
 ## ADR-008 — Accept RUSTSEC-2023-0071 (`rsa` Marvin attack) for now
 **Context.** `cargo audit` flags `rsa 0.10.0-rc.18`, pulled in by IronRDP's `picky`/`sspi`. No fixed version exists. The attack needs an RSA PKCS#1 v1.5 *decryption* oracle using the server's private key.
-**Decision.** Ignore it in `core/.cargo/audit.toml`, after verifying our path: TLS private-key operations go through rustls with aws-lc-rs; NLA uses NTLM (HMAC/RC4, no RSA); Kerberos (whose sspi decrypts are symmetric anyway) is not enabled. We also raised the workspace MSRV to Rust 1.88 to take `time ≥ 0.3.47` (RUSTSEC-2026-0009).
+**Decision.** Ignore it in `core/.cargo/audit.toml`, after verifying our path: TLS private-key operations go through rustls with aws-lc-rs; NLA uses NTLM (HMAC/RC4, no RSA); Kerberos (whose sspi decrypts are symmetric anyway) is not enabled. The workspace MSRV was first raised to Rust 1.88 for `time ≥ 0.3.47` (RUSTSEC-2026-0009), and is now 1.94 because the aligned IronRDP 0.14 stack requires it.
 **Consequences.** We re-check this whenever IronRDP is bumped and remove the ignore once `rsa` ships a constant-time release. If we ever enable Kerberos or RSA key transport, this ADR must be revisited.
 
-## ADR-009 — Stay on released `ironrdp-server 0.13.0`; own the accept loop
+## ADR-009 — Historical: stay on released `ironrdp-server 0.13.0`; own the accept loop
+**Status.** Superseded by ADR-021 on 2026-11-24. The 0.13.0 API and its release status below describe the earlier implementation, not the current dependency baseline.
 **Context.** Phase 0 research read IronRDP *master*, which carries unreleased APIs under the same version number (`ConnectionSource`/`serve`, `on_connection_info`, suppress-output context, server-side RDPDR). The published 0.13.0 has `run()` and `run_connection(stream)` only.
 **Decision.** Depend on the released crate, not a git revision. `server.rs` runs its own accept loop (bind → LAN check → `run_connection`), which also gives synchronous bind errors and port-0 support. IronRDP only calls `RdpServerDisplay::updates()` after authentication and capability exchange, so we use that call as the "session started" signal. We enable `with_honor_client_desktop_size(true)` and only clamp sizes no valid client sends.
 **Consequences.** We re-check for these APIs when IronRDP publishes a new release, and Phase 7 file transfer depends on RDPDR server support shipping. The accept loop is about 40 lines we maintain ourselves.
@@ -75,16 +76,17 @@ Format: context → decision → consequences. Newest last. Status is *Accepted*
 
 ## ADR-015 — Dev builds signed with a local self-signed identity
 **Context.** TCC (Screen Recording, Accessibility) and the Keychain pin ad-hoc-signed apps to their build hash, so every rebuild loses permission grants. The maintainer can't unlock the login keychain.
-**Decision.** `scripts/dev-signing.sh` creates `~/Library/Keychains/clawtank-dev.keychain-db`. It has its own random password (git-ignored `build/dev-signing/`) and holds a self-signed "ClawTank Dev" code-signing identity. `make app` re-signs with it when present. The designated requirement becomes `identifier "dev.clawtank.ClawTank" and certificate leaf = H"…"`, which is stable across rebuilds. codesign only finds keys in search-list keychains, so the script adds the dev keychain for the duration of signing and then restores the exact previous list.
+**Decision.** `scripts/dev-signing.sh` creates `~/Library/Keychains/yeswwq.keychain-db`. It has its own password (git-ignored `build/dev-signing/yeswwq/keychain-password`) and holds a self-signed `yeswwq` code-signing identity. `make app` re-signs with it when present. The designated requirement becomes `identifier "dev.clawtank.ClawTank" and certificate leaf = H"…"`, which is stable across rebuilds. codesign only finds keys in search-list keychains, so the script adds the dev keychain for the duration of signing and then restores the exact previous list.
 **Consequences.** Grants survive rebuilds on this machine. Other machines or CI stay ad-hoc. `scripts/dev-signing.sh remove` undoes it. The identity has no team ID, so secrets still use the file store (ADR-013).
 
-## ADR-016 — VideoToolbox low-latency rate control by default
-**Context.** Measured with `make bench` (2560×1600, synthetic motion, paced at 60 fps, M2): standard hardware encoder `ave.avc` gave 59.7 fps, p50 11.6 ms, p95 37.5 ms. Low-latency rate control `h264.rtvc` gave 57.8 fps, p50 11.0 ms, p95 20.3 ms. The rtvc encoder doesn't answer `UsingHardwareAcceleratedVideoEncoder` (-12900) but is created under `RequireHardwareAcceleratedVideoEncoder`.
-**Decision.** Use `EnableLowLatencyRateControl` with hardware required. Keep the setting switchable (`Settings.lowLatencyRateControl`) and log the encoder ID.
-**Consequences.** Re-benchmark on real desktop content and judge text quality visually in a client. If rtvc's quality or rate control is worse for text, quality presets (Phase 5) may pick `ave.avc`.
+## ADR-016 — 优先使用 VideoToolbox 低延迟编码
+**背景。** M2 上通过 `make bench` 测量 2560×1600、合成运动、60 fps 输入：标准硬件编码器 `ave.avc` 为 59.7 fps、p50 11.6 ms、p95 37.5 ms；低延迟编码 `h264.rtvc` 为 57.8 fps、p50 11.0 ms、p95 20.3 ms。2026-11-23 在 Intel Mac Pro、macOS 26.7.3、RTX 5060/NVMTL 3.0 上，VideoToolbox 对 `EnableLowLatencyRateControl=true` 返回 `kVTParameterErr (-12902)`；删除该选项后，硬件必需会话成功，编码器 ID 为 `com.nvmtl.videoencoder.avc.nvenc`，硬件属性为 true。
+**决定。** 创建硬件编码会话时请求低延迟模式。如果仅因低延迟 specification 返回 `kVTParameterErr`，移除该 specification 并重试，始终保留 `RequireHardwareAcceleratedVideoEncoder`。日志记录实际编码器 ID、VideoToolbox 硬件属性和是否接受低延迟模式；未提供硬件属性时记为 unknown，不根据请求参数推断硬件状态。其他创建错误继续向上报告，并包含 OSStatus。
+**后果。** 支持该模式的编码器继续使用低延迟配置；NVMTL 设备使用标准硬件编码器继续提供 H.264，但延迟特性需重新测量。当前 API 探针证明本机能够建立 NVIDIA 硬件会话，完整 RDP 视频持续输出仍需真实客户端复测。基准报告必须区分请求和实际启用的低延迟状态。
 
-## ADR-017 — Temporary vendored `ironrdp-server` 0.13.0 with two upstream fixes
-**Context.** The published 0.13.0 maps the middle button and horizontal wheel to *moves*, and maps the X1/X2 (back/forward) buttons to **left/right clicks**. It also sends 32 bpp pointers with an empty AND mask, which Windows App for macOS ignores (it keeps its default arrow). IronRDP master fixes both, but they aren't released.
+## ADR-017 — Historical: temporary vendored `ironrdp-server` 0.13.0 with two upstream fixes
+**Status.** Superseded by ADR-021 on 2026-11-24. Current builds use the pinned IronRDP revision; the 0.13/0.3 vendor trees are excluded reference material and are not patched into Cargo's dependency graph.
+**Context.** At the time of this decision, the published 0.13.0 mapped the middle button and horizontal wheel to *moves*, and mapped the X1/X2 (back/forward) buttons to **left/right clicks**. It also sent 32 bpp pointers with an empty AND mask, which Windows App for macOS ignored (it kept its default arrow). The fixes existed on IronRDP master but were not released then.
 **Decision.** Vendor 0.13.0 under `core/vendor/ironrdp-server` via `[patch.crates-io]`, changing only (1) the `MousePdu`/`MouseXPdu` conversions in `handler.rs` (plus a `HorizontalScroll` variant) and (2) the AND mask derived from alpha (`encoder/pointer_mask.rs`, copied from master). Both are marked `ClawTank patch`. The vendor directory is excluded from our workspace lints. Chosen by the maintainer over moving to IronRDP master.
 **Consequences.** Remove it when IronRDP publishes a release with these fixes; `diff -r` against the registry copy shows the full delta. Licensing is Apache-2.0 OR MIT, credited in THIRD_PARTY_NOTICES.
 
@@ -94,7 +96,8 @@ Format: context → decision → consequences. Newest last. Status is *Accepted*
 **Research (Phase 8/10).** Options to unlock remotely without weakening security, all needing investigation: whether a privileged helper can post input to `loginwindow`; how Apple's Screen Sharing unlock flow works through public mechanisms; FileVault considerations. No implementation is promised.
 **Consequences.** Until then, a locked Mac shows wallpaper to remote clients, and the menu says why.
 
-## ADR-019 — Multi-monitor deferred
+## ADR-019 — Multi-monitor deferred (decision based on IronRDP 0.13/0.10)
+**Status.** The deferral was evaluated against the older versions below. Recheck monitor behavior against the ADR-021 stack before treating the implementation limits as current.
 **Context.** ironrdp-server 0.13 / ironrdp-acceptor 0.10 ignore the client's GCC monitor data, always send a single-monitor Monitor Layout PDU, and cap Display Control at 1 monitor. IronRDP master only *records* client monitors, and its acceptor still describes one monitor. Supporting it would mean patching two more upstream crates, including connection-sequence code, plus per-monitor virtual displays, capture and encoders.
 **Decision.** Chosen by the maintainer: defer. Multi-monitor clients get one resizable desktop. Revisit when IronRDP gains server multi-monitor support, or contribute it upstream.
 **Consequences.** The Phase 7 "two-monitor session" acceptance item is not met in v1.
@@ -108,6 +111,11 @@ Format: context → decision → consequences. Newest last. Status is *Accepted*
 
 Changes apply live with `VTSessionSetProperty`, with no keyframe.
 **Consequences.** Needs tuning on real Wi-Fi (human checklist). The menu shows rtt, target rate and a congestion flag.
+
+## ADR-021 — Pin one IronRDP upstream revision for the current protocol stack
+**Context.** crates.io `ironrdp 0.17.0` is a meta/re-export crate whose component versions do not identify the newest server API. The current server API and its matching EGFX, session, PDU and channel types must come from one compatible revision. The previous 0.13/0.3 vendored sources also contained local protocol patches that need to be reconciled with upstream changes.
+**Decision.** Pin every active IronRDP dependency to upstream revision `475e5d534f0afa080e51b940caf3d7c1f9d6ec6c`, with manifest version requirements documenting the component versions (server 0.14.0, EGFX 0.5.0, core 0.3.1, PDU 0.11.0 and matching channel/client crates). Keep the old vendored 0.13/0.3 trees excluded from the workspace as historical reference; do not patch the new dependency graph with them. Upgrade the lockfile with Cargo and keep the revision fixed until an intentional compatibility update is reviewed.
+**Consequences.** All IronRDP APIs move together and builds remain reproducible. Transitive crates that IronRDP pins exactly can remain behind the registry latest until its manifest constraints change; report those constraints rather than hand-editing Cargo.lock. Re-evaluate the pin against upstream before the next IronRDP update. The stack migration does not by itself prove Windows-client interoperability or NVIDIA runtime behavior.
 
 ## ADR-021 — AVC444: measured, no-go for v1
 **Measurement** (`scratchpad/chroma.swift`, M2, our encoder settings): small coloured text rendered at 1× and 2×, encoded with H.264 4:2:0, then decoded.

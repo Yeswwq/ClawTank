@@ -315,7 +315,7 @@ async fn files_both_ways() {
             continue;
         };
         let (action, payload) = read.unwrap();
-        for out in stage.process(&mut image, action, &payload).unwrap() {
+        for out in stage.process(&mut image, action, &payload, None).unwrap() {
             if let ActiveStageOutput::ResponseFrame(bytes) = out {
                 session.write_all(&bytes).await.unwrap();
             }

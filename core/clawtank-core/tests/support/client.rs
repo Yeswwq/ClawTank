@@ -3,8 +3,8 @@
 
 //! Minimal RDP client built on IronRDP's client crates, shared by the integration tests and
 //! the `probe` example. It connects with TLS + NLA, optionally joins the EGFX graphics
-//! pipeline (recording the H.264 bitstreams it receives instead of decoding them), and either
-//! reads legacy updates until the image matches ClawTank's test pattern or pumps the session.
+//! pipeline (recording H.264 and decoded bitmap updates), and either reads legacy updates
+//! until the image matches ClawTank's test pattern or pumps the session.
 
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,17 +14,23 @@ use std::time::{Duration, Instant};
 use clawtank_core::test_pattern::expected_rgb;
 use clawtank_core::tls::TlsIdentity;
 use ironrdp_async::FramedWrite as _;
-use ironrdp_connector::{ClientConnector, ConnectionResult, Credentials};
+use ironrdp_connector::{ClientConnector, ConnectionResult, ConnectorErrorExt as _, Credentials};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_dvc::DrdynvcClient;
-use ironrdp_egfx::client::{GraphicsPipelineClient, GraphicsPipelineHandler};
+use ironrdp_egfx::client::{BitmapUpdate, GraphicsPipelineClient, GraphicsPipelineHandler};
 use ironrdp_egfx::decode::{DecodedFrame, DecoderResult, H264Decoder};
+use ironrdp_egfx::pdu::{CapabilitySet, Codec2Type, WireToSurface2Pdu};
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::gcc::KeyboardType;
+use ironrdp_pdu::gcc::{ConnectionType, MultiTransportFlags};
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::capability_sets::RailSupportLevel;
 use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
-use ironrdp_session::image::DecodedImage;
-use ironrdp_session::{ActiveStageBuilder, ActiveStageOutput};
+use ironrdp_session::ActiveStageBuilder;
+pub use ironrdp_session::ActiveStageOutput;
+pub use ironrdp_session::image::DecodedImage;
+use ironrdp_tls::CertificateValidation;
+use ironrdp_tokio::TokioFramed;
 use ironrdp_tokio::reqwest::ReqwestNetworkClient;
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
@@ -45,6 +51,17 @@ pub fn client_config(
     client_config_with(user, password, width, height, false)
 }
 
+/// Same client configuration, named for tests that need the server-drawn
+/// pointer disabled so a solid diagnostic bitmap stays visible.
+pub fn client_config_without_test_pattern(
+    user: &str,
+    password: &str,
+    width: u16,
+    height: u16,
+) -> ironrdp_connector::Config {
+    client_config_with(user, password, width, height, false)
+}
+
 /// `server_pointer`: ask the server for cursor shapes (client-side cursor rendering).
 pub fn client_config_with(
     user: &str,
@@ -55,9 +72,16 @@ pub fn client_config_with(
 ) -> ironrdp_connector::Config {
     ironrdp_connector::Config {
         desktop_size: ironrdp_connector::DesktopSize { width, height },
+        monitor_layout: None,
         desktop_scale_factor: 0,
+        desktop_physical_size: None,
+        desktop_orientation: None,
+        device_scale_factor: None,
+        monitor_extended_layout: None,
+        relative_mouse_input: false,
         enable_tls: false,
         enable_credssp: true,
+        enable_standard_rdp_security: false,
         credentials: Credentials::UsernamePassword {
             username: user.to_owned(),
             password: password.to_owned(),
@@ -65,10 +89,11 @@ pub fn client_config_with(
         domain: None,
         client_build: 0,
         client_name: "clawtank-probe".to_owned(),
-        keyboard_type: KeyboardType::IbmEnhanced,
+        keyboard_type: KeyboardType::IBM_ENHANCED,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         keyboard_layout: 0,
+        connection_type: ConnectionType::Lan,
         ime_file_name: String::new(),
         bitmap: None,
         dig_product_id: String::new(),
@@ -80,6 +105,7 @@ pub fn client_config_with(
         request_data: None,
         autologon: false,
         enable_audio_playback: false,
+        enable_audio_capture: false,
         performance_flags: PerformanceFlags::default(),
         license_cache: None,
         timezone_info: TimezoneInfo::default(),
@@ -87,6 +113,10 @@ pub fn client_config_with(
         enable_server_pointer: server_pointer,
         pointer_software_rendering: !server_pointer,
         multitransport_flags: None,
+        support_dyn_vc_gfx_protocol: false,
+        rdp_version: ironrdp_pdu::gcc::RdpVersion::V5_PLUS,
+        remote_application_mode: false,
+        rail_support_level: RailSupportLevel::SUPPORTED,
     }
 }
 
@@ -100,6 +130,13 @@ pub struct EgfxRecorder {
     pub frames: Arc<AtomicU64>,
     /// Size from the last ResetGraphics.
     pub reset_size: Arc<Mutex<Option<(u32, u32)>>>,
+    /// Progressive payload metadata observed on `WireToSurface2`.
+    pub progressive_pdus: Arc<AtomicU64>,
+    pub progressive_bytes: Arc<AtomicU64>,
+    pub progressive_codec_context: Arc<Mutex<Option<u32>>>,
+    pub negotiated_capability: Arc<Mutex<Option<CapabilitySet>>>,
+    pub progressive_updates: Arc<AtomicU64>,
+    pub advertise_avc_disabled: bool,
 }
 
 impl EgfxRecorder {
@@ -115,12 +152,48 @@ impl EgfxRecorder {
 struct RecordingHandler(EgfxRecorder);
 
 impl GraphicsPipelineHandler for RecordingHandler {
+    fn capabilities(&self) -> Vec<CapabilitySet> {
+        if self.0.advertise_avc_disabled {
+            vec![CapabilitySet::V10_4 {
+                flags: ironrdp_egfx::pdu::CapabilitiesV104Flags::AVC_DISABLED,
+            }]
+        } else {
+            vec![
+                CapabilitySet::V10_4 {
+                    flags: ironrdp_egfx::pdu::CapabilitiesV104Flags::empty(),
+                },
+                CapabilitySet::V8_1 {
+                    flags: ironrdp_egfx::pdu::CapabilitiesV81Flags::AVC420_ENABLED,
+                },
+            ]
+        }
+    }
+
+    fn on_capabilities_confirmed(&mut self, capability: &CapabilitySet) {
+        *self.0.negotiated_capability.lock().unwrap() = Some(capability.clone());
+    }
     fn on_reset_graphics(&mut self, width: u32, height: u32) {
         *self.0.reset_size.lock().unwrap() = Some((width, height));
     }
 
     fn on_frame_complete(&mut self, _frame_id: u32) {
         self.0.frames.fetch_add(1, Ordering::AcqRel);
+    }
+
+    fn on_bitmap_updated(&mut self, update: &BitmapUpdate) {
+        if update.codec_id == ironrdp_egfx::pdu::Codec1Type::Uncompressed {
+            self.0.progressive_updates.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
+    fn on_wire_to_surface2(&mut self, pdu: &WireToSurface2Pdu) {
+        if pdu.codec_id == Codec2Type::RemoteFxProgressive {
+            self.0.progressive_pdus.fetch_add(1, Ordering::AcqRel);
+            self.0
+                .progressive_bytes
+                .fetch_add(pdu.bitmap_data.len() as u64, Ordering::AcqRel);
+            *self.0.progressive_codec_context.lock().unwrap() = Some(pdu.codec_context_id);
+        }
     }
 }
 
@@ -172,12 +245,39 @@ pub async fn connect_with_channels(
     egfx: Option<&EgfxRecorder>,
     attach: impl FnOnce(&mut ClientConnector),
 ) -> anyhow::Result<(ConnectionResult, Session, Vec<u8>)> {
+    connect_with_channels_and_multitransport(addr, config, egfx, attach, false)
+        .await
+        .map(|(result, framed, cert, _)| (result, framed, cert))
+}
+
+/// Like [`connect_with_channels`], but advertises reliable UDP Soft-Sync and
+/// establishes the sideband transport before finalization completes.
+pub async fn connect_with_channels_and_multitransport(
+    addr: SocketAddr,
+    config: ironrdp_connector::Config,
+    egfx: Option<&EgfxRecorder>,
+    attach: impl FnOnce(&mut ClientConnector),
+    use_udp: bool,
+) -> anyhow::Result<(
+    ConnectionResult,
+    Session,
+    Vec<u8>,
+    Option<ironrdp_rdpeudp_tokio::UdpTransport>,
+)> {
     let server_name = "clawtank-server";
     let tcp = TcpStream::connect(addr).await?;
     // Like real RDP clients: small PDUs (input, file-range requests) must not wait for Nagle.
     tcp.set_nodelay(true)?;
     let client_addr = tcp.local_addr()?;
-    let mut framed = ironrdp_tokio::TokioFramed::new(tcp);
+    let mut config = config;
+    config.support_dyn_vc_gfx_protocol = egfx.is_some();
+    if use_udp {
+        config.multitransport_flags = Some(
+            MultiTransportFlags::TRANSPORT_TYPE_UDP_FECR
+                | MultiTransportFlags::SOFT_SYNC_TCP_TO_UDP,
+        );
+    }
+    let mut framed = TokioFramed::new(tcp);
     let mut connector = ClientConnector::new(config, client_addr);
     if let Some(recorder) = egfx {
         let gfx = GraphicsPipelineClient::new(
@@ -222,8 +322,9 @@ pub async fn connect_with_channels(
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let upgraded = ironrdp_async::mark_as_upgraded(should_upgrade, &mut connector);
-    let mut framed = ironrdp_tokio::TokioFramed::new(tls);
-    let result = ironrdp_async::connect_finalize(
+    let mut framed = TokioFramed::new(tls);
+    let mut udp_probe = None;
+    let outcome = ironrdp_async::connect_finalize_with_multitransport(
         upgraded,
         connector,
         &mut framed,
@@ -231,9 +332,35 @@ pub async fn connect_with_channels(
         server_name.into(),
         server_public_key,
         None,
+        async |request, soft_sync| {
+            if !use_udp {
+                return Ok(ironrdp_connector::MultitransportResult::Failure(
+                    ironrdp_pdu::rdp::multitransport::MultitransportResponsePdu::E_ABORT,
+                ));
+            }
+            assert!(soft_sync, "server and client must negotiate Soft-Sync");
+            let mut bootstrap = ironrdp_rdpeudp_tokio::MultitransportBootstrap::new(request);
+            let udp_addr = SocketAddr::new(addr.ip(), addr.port());
+            let tls = ironrdp_rdpeudp_tokio::UdpTlsConfig {
+                certificate_validation: CertificateValidation::DangerouslyAcceptInvalidCertificate,
+                ..ironrdp_rdpeudp_tokio::UdpTlsConfig::new("clawtank-server".into())
+            };
+            bootstrap
+                .connect(
+                    udp_addr,
+                    "clawtank-server".into(),
+                    ironrdp_rdpeudp::ConnectionConfig::default(),
+                    tls,
+                )
+                .await
+                .map_err(|error| ironrdp_connector::ConnectorError::custom("UDP tunnel", error))?;
+            udp_probe = bootstrap.take_transport();
+            Ok(ironrdp_connector::MultitransportResult::Success)
+        },
     )
     .await?;
-    Ok((result, framed, cert_der))
+    let result = outcome.into_connected()?;
+    Ok((result, framed, cert_der, udp_probe))
 }
 
 pub fn active_stage(result: ConnectionResult) -> ironrdp_session::ActiveStage {
@@ -258,6 +385,18 @@ pub async fn pump_until(
     timeout: Duration,
     mut done: impl FnMut() -> bool,
 ) -> anyhow::Result<bool> {
+    pump_until_with_image(result, framed, timeout, &mut done)
+        .await
+        .map(|(done, _)| done)
+}
+
+/// Like [`pump_until`], but returns the decoded framebuffer as well.
+pub async fn pump_until_with_image(
+    result: ConnectionResult,
+    framed: &mut Session,
+    timeout: Duration,
+    mut done: impl FnMut() -> bool,
+) -> anyhow::Result<(bool, DecodedImage)> {
     let (width, height) = (result.desktop_size.width, result.desktop_size.height);
     let mut stage = active_stage(result);
     let mut image = DecodedImage::new(PixelFormat::RgbA32, width, height);
@@ -265,7 +404,7 @@ pub async fn pump_until(
     while !done() {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Ok(false);
+            return Ok((false, image));
         }
         // Wake periodically so `done()` is re-checked even when the server is quiet.
         let read =
@@ -273,7 +412,7 @@ pub async fn pump_until(
                 .await;
         let Ok(read) = read else { continue };
         let (action, payload) = read?;
-        for out in stage.process(&mut image, action, &payload)? {
+        for out in stage.process(&mut image, action, &payload, framed.last_read_at())? {
             match out {
                 ActiveStageOutput::ResponseFrame(frame) => framed.write_all(&frame).await?,
                 ActiveStageOutput::Terminate(reason) => {
@@ -283,7 +422,7 @@ pub async fn pump_until(
             }
         }
     }
-    Ok(true)
+    Ok((true, image))
 }
 
 /// Reads graphics updates until the image matches the test pattern, or `timeout` passes.
@@ -301,7 +440,7 @@ pub async fn receive_test_pattern(
     let outcome = tokio::time::timeout(timeout, async {
         loop {
             let (action, payload) = framed.read_pdu().await?;
-            for out in stage.process(&mut image, action, &payload)? {
+            for out in stage.process(&mut image, action, &payload, framed.last_read_at())? {
                 match out {
                     ActiveStageOutput::ResponseFrame(frame) => framed.write_all(&frame).await?,
                     ActiveStageOutput::GraphicsUpdate(_) => {

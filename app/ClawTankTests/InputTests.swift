@@ -171,6 +171,94 @@ final class InputInjectorTests: XCTestCase {
             maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
         XCTAssertEqual(Array(chars.prefix(length)), [0xD83D, 0xDE00])
     }
+
+    func testTouchTapIsCommittedOnUpWithoutPressOnDown() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let touchUpFlags: UInt32 = 0x0004 | 0x0008
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        XCTAssertTrue(poster.events.isEmpty, "touch down must not synthesize a premature click")
+        injector.handle(.touch(contactID: 1, flags: touchUpFlags, x: 200, y: 100))
+
+        XCTAssertEqual(poster.events.map(\.type), [.mouseMoved, .leftMouseDown, .leftMouseUp])
+    }
+
+    func testTouchMovementCrossesThresholdIntoDrag() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let update: UInt32 = 0x0002 | 0x0008 | 0x0010
+        let touchUpFlags: UInt32 = 0x0004 | 0x0008
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        injector.handle(.touch(contactID: 1, flags: update, x: 210, y: 100))
+        injector.handle(.touch(contactID: 1, flags: touchUpFlags, x: 210, y: 100))
+
+        XCTAssertEqual(poster.events.map(\.type), [.mouseMoved, .leftMouseDown, .leftMouseDragged, .leftMouseUp])
+    }
+
+    func testSecondTouchPromotesToScrollWithoutClick() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let update: UInt32 = 0x0002 | 0x0008 | 0x0010
+        let touchUpFlags: UInt32 = 0x0004 | 0x0008
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        injector.handle(.touch(contactID: 2, flags: down, x: 220, y: 100))
+        injector.handle(.touch(contactID: 1, flags: update, x: 200, y: 120))
+        injector.handle(.touch(contactID: 1, flags: touchUpFlags, x: 200, y: 120))
+        injector.handle(.touch(contactID: 2, flags: touchUpFlags, x: 220, y: 100))
+
+        XCTAssertTrue(poster.events.contains { $0.type == .scrollWheel })
+        XCTAssertFalse(poster.events.contains { $0.type == .leftMouseDown })
+        XCTAssertFalse(poster.events.contains { $0.type == .leftMouseUp })
+    }
+
+    func testCompletedScrollGestureDoesNotLeakIntoNextSingleTouch() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let update: UInt32 = 0x0002 | 0x0008 | 0x0010
+        let touchUpFlags: UInt32 = 0x0004 | 0x0008
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        injector.handle(.touch(contactID: 2, flags: down, x: 220, y: 100))
+        injector.handle(.touch(contactID: 1, flags: update, x: 200, y: 120))
+        injector.handle(.touch(contactID: 1, flags: touchUpFlags, x: 200, y: 120))
+        injector.handle(.touch(contactID: 2, flags: touchUpFlags, x: 220, y: 100))
+
+        poster.events.removeAll()
+        injector.handle(.touch(contactID: 3, flags: down, x: 300, y: 200))
+        injector.handle(.touch(contactID: 3, flags: touchUpFlags, x: 300, y: 200))
+
+        XCTAssertEqual(poster.events.map(\.type), [.mouseMoved, .leftMouseDown, .leftMouseUp])
+    }
+
+    func testCanceledTouchDoesNotClickAndNextTouchStartsFresh() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let canceled: UInt32 = 0x0004 | 0x0008 | 0x0020
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        injector.handle(.touch(contactID: 1, flags: canceled, x: 200, y: 100))
+        XCTAssertTrue(poster.events.isEmpty, "canceled touch must not synthesize a click")
+
+        injector.handle(.touch(contactID: 2, flags: down, x: 300, y: 200))
+        injector.handle(.touch(contactID: 2, flags: 0x0004 | 0x0008, x: 300, y: 200))
+        XCTAssertEqual(poster.events.map(\.type), [.mouseMoved, .leftMouseDown, .leftMouseUp])
+    }
+
+    func testReleaseAllLiftsSyntheticTouchDrag() {
+        let (injector, poster) = makeInjector()
+        let down: UInt32 = 0x0001 | 0x0008 | 0x0010
+        let update: UInt32 = 0x0002 | 0x0008 | 0x0010
+
+        injector.handle(.touch(contactID: 1, flags: down, x: 200, y: 100))
+        injector.handle(.touch(contactID: 1, flags: update, x: 210, y: 100))
+        poster.events.removeAll()
+        injector.releaseAll()
+
+        XCTAssertEqual(poster.events.map(\.type), [.leftMouseUp])
+    }
 }
 
 final class CursorPublisherTests: XCTestCase {

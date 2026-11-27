@@ -2,6 +2,25 @@
 
 Date: 2026-10-21. Source inspected: crates.io API and `Devolutions/IronRDP` master @ `0f9154d` (2026-10-20). Repo: Apache-2.0 / MIT dual license, ~3.2k stars, very active (pushed daily).
 
+> **Dependency status (2026-11-24):** the Phase 0 findings below are a historical
+> snapshot and must not be used as the current version inventory. The workspace now
+> pins all active IronRDP crates to upstream revision
+> `475e5d534f0afa080e51b940caf3d7c1f9d6ec6c` so protocol types remain from one
+> source revision. Its component versions include `ironrdp-server 0.14.0`,
+> `ironrdp-egfx 0.5.0`, `ironrdp-core 0.3.1`, `ironrdp-pdu 0.11.0`,
+> `ironrdp-cliprdr 0.9.0`, and `ironrdp-connector`/`ironrdp-async 0.12.0`.
+> The crates.io `ironrdp 0.17.0` meta crate represents an older component
+> generation and is not used by this workspace. `core/vendor/` still contains
+> patched 0.13/0.3 source for historical reference, but Cargo excludes it and the
+> active dependency graph does not use it. The API migration is covered by the
+> x86_64 all-target checks and Rust integration tests; see ADR-021.
+
+> All capability, bug, and API statements below describe the 2026-10-21 research
+> snapshot (mostly IronRDP 0.13/0.3 or then-current master). They have not all been
+> re-audited against the 0.14/0.5 stack. Treat them as research history, not as
+> current behavior or a current gap list; validate any decision against the pinned
+> sources and current protocol tests first.
+
 ## Versions to pin
 
 | Crate | Version | Released |
@@ -64,7 +83,34 @@ We pin with `=x.y.z` and commit `Cargo.lock`.
 - **Master only (unreleased in 0.13.0):** `with_rdpdr_factory(RdpdrServerFactory)` → `RdpdrServerBackend` (`on_device_announce`, …), with an EFS PDU module (`pdu/efs.rs`). Drive redirection looks feasible. Maturity is unknown until we exercise it in Phase 7.
 
 ### Other
-- USB redirection (opt-in feature), echo, auto-detect (RTT measurement; useful for adaptive quality), multitransport/UDP.
+- USB redirection (opt-in feature), echo, auto-detect (RTT measurement; useful
+  for adaptive quality), and reliable UDP multitransport.
+
+### Reliable UDP multitransport (current 0.14 stack)
+
+`RdpServerBuilder::with_udp_transport(addr)` advertises
+`TRANSPORT_TYPE_UDP_FECR | SOFT_SYNC_TCP_TO_UDP` when Enhanced Security is
+active and the client supplied an MCS message channel. A reciprocating client
+receives an `Initiate Multitransport Request`; IronRDP then establishes the
+sideband as RDPEUDP2 + TLS + RDPEMT. The primary TCP session must remain open.
+
+Once the EGFX dynamic channel has data, the server sends a DRDYNVC Soft-Sync
+request selecting only EGFX. EGFX PDUs and their acknowledgements then use the
+UDP tunnel; DRDYNVC control, Display Control, input, audio and clipboard remain
+on TCP. A failed sideband or `E_ABORT` leaves EGFX on TCP. Once EGFX has
+actually migrated, loss of the UDP tunnel ends the session instead of silently
+falling back, because the tunnel cannot move the channel back to TCP.
+
+The current sender is reliable RDPEUDP with retransmission (FECR). Lossy
+RDPEUDP (`UDP_FECL`) is advertised by the protocol types but is not requested
+by this server implementation.
+
+Current one-sided protocol references (retrieved 2026-11-26):
+[MS-RDPBCGR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/),
+[MS-RDPEUDP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp/2744a3ee-04fb-407b-a9e3-b3b2ded422b1),
+[MS-RDPEUDP2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp2/9db34630-e880-4bfd-9d8d-50bc044c3288),
+[MS-RDPEMT](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpemt/d22b606c-32c4-4647-b356-86f75e23a22c),
+and [MS-RDPEDYC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedyc/3bd53020-9b64-4c9a-97fc-90a79e7e1e06).
 
 ## Gaps and proposals
 
@@ -74,4 +120,4 @@ We pin with `=x.y.z` and commit `Cargo.lock`.
 | Server-side CredSSP refactor in flight (#1432) | Keep our NLA code thin and behind `CredentialValidator` / `set_credentials`, so an API change touches one file. |
 | macOS-specific interop (Windows App for Mac/iPad) not tested upstream | Our own integration tests plus the manual checklist. Report upstream anything we find. |
 
-**Verdict:** nothing blocks us. We don't need a FreeRDP fallback. Build on `ironrdp-server 0.13.0` with `egfx`.
+**Historical verdict (2026-10-21):** nothing blocked the initial implementation. This is not the current dependency recommendation; see the dependency status above and ADR-021.

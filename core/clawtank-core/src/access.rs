@@ -241,7 +241,11 @@ impl SessionTracker {
     }
 
     /// Called when a connection ends, with its error if any.
-    pub fn finished(&self, peer: SocketAddr, error: Option<String>) {
+    ///
+    /// `credentials_rejected` is true only after the configured username/password was
+    /// explicitly refused. TLS, capability, and other pre-session protocol failures must
+    /// not consume the failed-login budget or lock out a legitimate client.
+    pub fn finished(&self, peer: SocketAddr, error: Option<String>, credentials_rejected: bool) {
         if self.started.swap(false, Ordering::AcqRel) {
             info!(%peer, ?error, "Client disconnected");
             (self.sink)(CoreEvent::ClientDisconnected { peer, error });
@@ -250,16 +254,19 @@ impl SessionTracker {
             (self.sink)(CoreEvent::ConnectionFailed {
                 peer,
                 error: error.unwrap_or_else(|| "closed during handshake".to_owned()),
+                credentials_rejected,
             });
-            // Anything that fails before the session starts counts (a bad password is by far
-            // the most common); 5 in 5 minutes is generous for legitimate retries.
+            // Only an explicit credential refusal counts. Treating every pre-session failure
+            // as a bad password lets a protocol incompatibility lock out a legitimate client.
             // One lock acquisition: never re-lock the mutex while a guard may still be alive.
-            let locked_for = {
-                let mut lockout = self.lockout();
-                lockout
-                    .record_failure(peer.ip(), Instant::now())
-                    .then_some(lockout.duration)
-            };
+            let locked_for = credentials_rejected
+                .then(|| {
+                    let mut lockout = self.lockout();
+                    lockout
+                        .record_failure(peer.ip(), Instant::now())
+                        .then_some(lockout.duration)
+                })
+                .flatten();
             if let Some(duration) = locked_for {
                 let minutes = duration.as_secs() / 60;
                 warn!(ip = %peer.ip(), minutes, "Locking out IP after repeated failures");
@@ -398,12 +405,12 @@ mod tests {
         assert!(!t.accept(other_lan), "not in allowlist");
         assert!(!t.accept(wan), "allowlisted but LAN-only");
         assert!(t.accept(lan));
-        t.finished(lan, Some("bad password".into()));
+        t.finished(lan, Some("bad password".into()), true);
         assert!(t.accept(lan));
         t.session_started();
         t.session_started(); // idempotent
         assert!(t.in_session());
-        t.finished(lan, None);
+        t.finished(lan, None, false);
         assert!(!t.in_session());
 
         assert_eq!(
@@ -419,7 +426,8 @@ mod tests {
                 },
                 CoreEvent::ConnectionFailed {
                     peer: lan,
-                    error: "bad password".into()
+                    error: "bad password".into(),
+                    credentials_rejected: true,
                 },
                 CoreEvent::ClientConnected(lan),
                 CoreEvent::ClientDisconnected {
@@ -441,7 +449,7 @@ mod tests {
         let peer: SocketAddr = "192.168.1.50:4000".parse().unwrap();
         for _ in 0..5 {
             assert!(t.accept(peer));
-            t.finished(peer, Some("CredSSP failure".into()));
+            t.finished(peer, Some("CredSSP failure".into()), true);
         }
         assert!(!t.accept(peer));
         let events = events.lock().unwrap();
@@ -456,5 +464,32 @@ mod tests {
                 reason: RejectReason::LockedOut
             })
         );
+    }
+
+    #[test]
+    fn tracker_does_not_lock_out_on_protocol_failures() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let log = Arc::clone(&events);
+        let t = SessionTracker::new(
+            AccessPolicy::lan_only(),
+            Arc::new(move |e| log.lock().unwrap().push(e)),
+        );
+        let peer: SocketAddr = "192.168.1.51:4000".parse().unwrap();
+
+        for _ in 0..6 {
+            assert!(t.accept(peer));
+            t.finished(
+                peer,
+                Some("failed to accept client during finalize".into()),
+                false,
+            );
+        }
+        assert!(!events.lock().unwrap().iter().any(|event| matches!(
+            event,
+            CoreEvent::LockedOut { .. } | CoreEvent::Rejected { .. }
+        )));
+
+        assert!(t.accept(peer), "protocol failures must not lock the peer");
+        t.finished(peer, Some("authentication denied".into()), true);
     }
 }

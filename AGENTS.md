@@ -7,8 +7,11 @@
   add vendor-specific GPU assumptions to the RDP protocol core.
 - Treat x86_64 compilation, macOS 26 runtime behavior and NVIDIA hardware
   encoding as separate claims that each need their own evidence.
-- Follow the clean-room rule in `CONTRIBUTING.md`; use published protocol/API
-  specifications and appropriately licensed open-source code.
+- Follow the interoperability and reuse boundaries in `CONTRIBUTING.md`: client
+  artifacts may be inspected for protocol compatibility, but do not copy
+  proprietary code, assets, UI text or branding. Separate artifact observations
+  from published specification requirements and independently validate wire
+  behavior.
 - Keep changes focused and upstreamable. Rebase this personal branch on
   `upstream/main` after fetching updates; do not push to `upstream`.
 - Run the relevant checks from `CONTRIBUTING.md` and report any unavailable

@@ -1,5 +1,5 @@
-// Hardware H.264 encoder (VideoToolbox) tuned for remote-desktop latency: real-time, low-latency
-// rate control, no frame reordering (no B-frames), long GOP with on-demand IDR. Output is the
+// Hardware H.264 encoder (VideoToolbox) tuned for remote-desktop latency: request low-latency
+// rate control when supported, no frame reordering (no B-frames), and on-demand IDRs. Output is the
 // Annex-B byte stream MS-RDPEGFX requires (RFX_AVC420_BITMAP_STREAM), with SPS/PPS prepended to
 // every keyframe so a client can join or recover at any IDR.
 
@@ -14,11 +14,56 @@ struct EncodedFrame: Sendable {
     let isKeyframe: Bool
     /// Wall time from `encode` to the output callback.
     let encodeDuration: TimeInterval
+    /// Reference-chain generation at submission. Outputs from an older
+    /// generation are obsolete after a forced keyframe.
+    let referenceGeneration: UInt64
 }
 
-enum EncoderError: Error, Equatable {
+enum EncoderError: Error, Equatable, LocalizedError, Sendable {
     case sessionCreation(OSStatus)
+    case prepare(OSStatus)
     case property(String, OSStatus)
+    case encodeFrame(OSStatus)
+    case annexBConversion
+
+    var requiresSessionRebuild: Bool {
+        guard case let .encodeFrame(status) = self else { return false }
+        return status == kVTVideoEncoderMalfunctionErr || status == kVTInvalidSessionErr
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case let .sessionCreation(status):
+            return "VideoToolbox session creation failed: \(Self.statusDescription(status))"
+        case let .prepare(status):
+            return "VideoToolbox encoder preparation failed: \(Self.statusDescription(status))"
+        case let .property(key, status):
+            return "VideoToolbox property \(key) failed: \(Self.statusDescription(status))"
+        case let .encodeFrame(status):
+            return "VideoToolbox frame encoding failed: \(Self.statusDescription(status))"
+        case .annexBConversion:
+            return "VideoToolbox output contained an invalid or truncated AVCC access unit"
+        }
+    }
+
+    private static func statusDescription(_ status: OSStatus) -> String {
+        let name: String? = switch status {
+        case noErr: "noErr"
+        case kVTPropertyNotSupportedErr: "kVTPropertyNotSupportedErr"
+        case kVTPropertyReadOnlyErr: "kVTPropertyReadOnlyErr"
+        case kVTParameterErr: "kVTParameterErr"
+        case kVTInvalidSessionErr: "kVTInvalidSessionErr"
+        case kVTAllocationFailedErr: "kVTAllocationFailedErr"
+        case kVTCouldNotFindVideoEncoderErr: "kVTCouldNotFindVideoEncoderErr"
+        case kVTVideoEncoderMalfunctionErr: "kVTVideoEncoderMalfunctionErr"
+        case kVTVideoEncoderNotAvailableNowErr: "kVTVideoEncoderNotAvailableNowErr"
+        default: nil
+        }
+        let raw = UInt32(bitPattern: status)
+        let hex = String(format: "0x%08X", raw)
+        return "OSStatus \(status) (\(hex))"
+            + (name.map { " [\($0)]" } ?? "")
+    }
 }
 
 final class H264Encoder: @unchecked Sendable {
@@ -47,14 +92,53 @@ final class H264Encoder: @unchecked Sendable {
 
     let settings: Settings
     private let session: VTCompressionSession
+    /// Whether the encoder accepted the low-latency specification. Some third-party
+    /// VideoToolbox encoders reject that specification while still providing hardware H.264.
+    let lowLatencyRateControlEnabled: Bool
     private let output: @Sendable (EncodedFrame) -> Void
+    private let onFailure: @Sendable (EncoderError) -> Void
     private let log = Logger(subsystem: "dev.clawtank.ClawTank", category: "encode")
+    private let invalidationLock = NSLock()
+    private var invalidated = false
 
-    init(settings: Settings, output: @escaping @Sendable (EncodedFrame) -> Void) throws {
+    private struct SessionCreation {
+        let session: VTCompressionSession
+        let lowLatencyEnabled: Bool
+        let fallbackStatus: OSStatus?
+    }
+
+    init(settings: Settings, output: @escaping @Sendable (EncodedFrame) -> Void,
+         onFailure: @escaping @Sendable (EncoderError) -> Void = { _ in }) throws {
         precondition(settings.width % 16 == 0 && settings.height % 16 == 0, "coded size must be 16-aligned")
         self.settings = settings
         self.output = output
+        self.onFailure = onFailure
+        let creationMessage = """
+            Creating H.264 encoder size=\(settings.width)x\(settings.height) \
+            fps=\(settings.frameRate) bitrate=\(settings.averageBitRate) \
+            requireHardware=\(settings.requireHardware) lowLatencyRequested=\(settings.lowLatencyRateControl)
+            """
+        log.info("\(creationMessage, privacy: .public)")
 
+        let created = try Self.createSession(settings: settings)
+        session = created.session
+        lowLatencyRateControlEnabled = created.lowLatencyEnabled
+        if let status = created.fallbackStatus {
+            log.notice("VideoToolbox rejected low-latency rate control (\(status)); retrying standard hardware encoder")
+        }
+
+        let identifier = Self.copyProperty(kVTCompressionPropertyKey_EncoderID, in: session) as? String ?? "unknown"
+        let hardware = Self.copyProperty(kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, in: session)
+            as? Bool
+        let hardwareText = hardware.map(String.init) ?? "unknown"
+        log.info("VideoToolbox encoder created id=\(identifier, privacy: .public)")
+        log.info("VideoToolbox encoder hardware=\(hardwareText, privacy: .public)")
+        log.info("VideoToolbox encoder lowLatency=\(created.lowLatencyEnabled)")
+
+        try configure(session: session, settings: settings)
+    }
+
+    private static func createSession(settings: Settings) throws -> SessionCreation {
         var spec: [CFString: Any] = [:]
         if settings.lowLatencyRateControl {
             spec[kVTVideoEncoderSpecification_EnableLowLatencyRateControl] = true
@@ -63,13 +147,28 @@ final class H264Encoder: @unchecked Sendable {
             spec[kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder] = true
         }
         var created: VTCompressionSession?
-        let status = VTCompressionSessionCreate(
+        var status = VTCompressionSessionCreate(
+            allocator: nil, width: Int32(settings.width), height: Int32(settings.height),
+            codecType: kCMVideoCodecType_H264, encoderSpecification: spec as CFDictionary,
+            imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: nil,
+            refcon: nil, compressionSessionOut: &created)
+        guard status == kVTParameterErr, settings.lowLatencyRateControl else {
+            guard status == noErr, let created else { throw EncoderError.sessionCreation(status) }
+            return SessionCreation(session: created, lowLatencyEnabled: settings.lowLatencyRateControl,
+                                   fallbackStatus: nil)
+        }
+        spec.removeValue(forKey: kVTVideoEncoderSpecification_EnableLowLatencyRateControl)
+        created = nil
+        status = VTCompressionSessionCreate(
             allocator: nil, width: Int32(settings.width), height: Int32(settings.height),
             codecType: kCMVideoCodecType_H264, encoderSpecification: spec as CFDictionary,
             imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: nil,
             refcon: nil, compressionSessionOut: &created)
         guard status == noErr, let created else { throw EncoderError.sessionCreation(status) }
-        session = created
+        return SessionCreation(session: created, lowLatencyEnabled: false, fallbackStatus: kVTParameterErr)
+    }
+
+    private func configure(session: VTCompressionSession, settings: Settings) throws {
 
         let keyframeFrames = Int(Double(settings.frameRate) * settings.keyframeIntervalSeconds)
         let properties: [(CFString, Any)] = [
@@ -99,10 +198,24 @@ final class H264Encoder: @unchecked Sendable {
                 log.notice("Encoder ignored \(key as String, privacy: .public): \(status)")
             }
         }
-        VTCompressionSessionPrepareToEncodeFrames(session)
+        let prepareStatus = VTCompressionSessionPrepareToEncodeFrames(session)
+        guard prepareStatus == noErr else {
+            VTCompressionSessionInvalidate(session)
+            throw EncoderError.prepare(prepareStatus)
+        }
     }
 
     deinit {
+        invalidate()
+    }
+
+    func invalidate() {
+        let shouldInvalidate = invalidationLock.withLock { () -> Bool in
+            guard !invalidated else { return false }
+            invalidated = true
+            return true
+        }
+        guard shouldInvalidate else { return }
         VTCompressionSessionInvalidate(session)
     }
 
@@ -111,16 +224,16 @@ final class H264Encoder: @unchecked Sendable {
         copyProperty(kVTCompressionPropertyKey_EncoderID) as? String ?? "unknown"
     }
 
-    /// True if VideoToolbox reports a hardware encoder, or hardware was required and the
-    /// session was created (the low-latency "rtvc" encoder doesn't answer the query).
-    var isHardwareAccelerated: Bool {
-        if let value = copyProperty(kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder) as? Bool {
-            return value
-        }
-        return settings.requireHardware
+    /// The runtime VideoToolbox result; nil means the encoder did not report this property.
+    var isHardwareAccelerated: Bool? {
+        copyProperty(kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder) as? Bool
     }
 
     private func copyProperty(_ key: CFString) -> CFTypeRef? {
+        Self.copyProperty(key, in: session)
+    }
+
+    private static func copyProperty(_ key: CFString, in session: VTCompressionSession) -> CFTypeRef? {
         let value = UnsafeMutablePointer<CFTypeRef?>.allocate(capacity: 1)
         value.initialize(to: nil)
         defer {
@@ -132,25 +245,44 @@ final class H264Encoder: @unchecked Sendable {
     }
 
     /// Encodes one frame asynchronously; `output` is called on a VideoToolbox thread.
-    func encode(_ pixelBuffer: CVPixelBuffer, presentationTime: CMTime, forceKeyframe: Bool) {
+    func encode(_ pixelBuffer: CVPixelBuffer, presentationTime: CMTime, forceKeyframe: Bool,
+                referenceGeneration: UInt64 = 0) {
         let started = CFAbsoluteTimeGetCurrent()
+        if forceKeyframe {
+            log.debug("Submitting forced H.264 keyframe pts=\(presentationTime.seconds)")
+        }
         let options: CFDictionary? = forceKeyframe
             ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil
         let status = VTCompressionSessionEncodeFrame(
             session, imageBuffer: pixelBuffer, presentationTimeStamp: presentationTime,
             duration: .invalid, frameProperties: options, infoFlagsOut: nil
-        ) { [output, log] status, _, sampleBuffer in
+        ) { [output, onFailure, log] status, _, sampleBuffer in
             guard status == noErr, let sampleBuffer else {
-                log.error("Encode failed: \(status)")
+                log.error("Encode failed: \(Self.statusDescription(status), privacy: .public)")
+                onFailure(.encodeFrame(status))
                 return
             }
-            guard let frame = Self.annexB(from: sampleBuffer) else { return }
+            guard let frame = Self.annexB(from: sampleBuffer) else {
+                log.error("Encode output conversion to Annex-B failed")
+                onFailure(.annexBConversion)
+                return
+            }
+            if frame.isKeyframe {
+                let durationMs = String(format: "%.2f", (CFAbsoluteTimeGetCurrent() - started) * 1000)
+                log.info("Encoded H.264 keyframe bytes=\(frame.data.count) durationMs=\(durationMs)")
+            }
             output(EncodedFrame(data: frame.data, isKeyframe: frame.isKeyframe,
-                                encodeDuration: CFAbsoluteTimeGetCurrent() - started))
+                                encodeDuration: CFAbsoluteTimeGetCurrent() - started,
+                                referenceGeneration: referenceGeneration))
         }
         if status != noErr {
-            log.error("VTCompressionSessionEncodeFrame failed: \(status)")
+            log.error("VTCompressionSessionEncodeFrame failed: \(Self.statusDescription(status), privacy: .public)")
+            onFailure(.encodeFrame(status))
         }
+    }
+
+    private static func statusDescription(_ status: OSStatus) -> String {
+        String(format: "OSStatus %d (0x%08X)", status, UInt32(bitPattern: status))
     }
 
     /// Changes the bit rate live (adaptive bitrate); takes effect within a few frames.
@@ -166,6 +298,9 @@ final class H264Encoder: @unchecked Sendable {
         VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid)
     }
 
+}
+
+extension H264Encoder {
     // MARK: - AVCC → Annex-B
 
     private static let startCode: [UInt8] = [0, 0, 0, 1]
@@ -203,20 +338,13 @@ final class H264Encoder: @unchecked Sendable {
             contiguous, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &totalLength,
             dataPointerOut: &dataPointer) == kCMBlockBufferNoErr, let dataPointer else { return nil }
         let headerLength = nalHeaderLength
-        dataPointer.withMemoryRebound(to: UInt8.self, capacity: totalLength) { bytes in
-            var offset = 0
-            while offset + headerLength <= totalLength {
-                var nalLength = 0
-                for index in 0..<headerLength {
-                    nalLength = (nalLength << 8) | Int(bytes[offset + index])
-                }
-                offset += headerLength
-                guard nalLength > 0, offset + nalLength <= totalLength else { break }
-                out.append(contentsOf: startCode)
-                out.append(bytes + offset, count: nalLength)
-                offset += nalLength
-            }
+        let converted = dataPointer.withMemoryRebound(to: UInt8.self, capacity: totalLength) { bytes in
+            appendAVCCNALUnits(
+                from: UnsafeBufferPointer(start: bytes, count: totalLength),
+                headerLength: headerLength,
+                to: &out)
         }
+        guard converted else { return nil }
         return (out, keyframe)
     }
 
@@ -241,5 +369,40 @@ final class H264Encoder: @unchecked Sendable {
             }
         }
         return Int(headerLength)
+    }
+
+    /// Appends AVCC NALs only when the entire access unit has valid length prefixes and payloads.
+    @discardableResult
+    static func appendAVCCNALUnits(from bytes: UnsafeBufferPointer<UInt8>, headerLength: Int,
+                                   to output: inout Data) -> Bool {
+        guard (1...4).contains(headerLength), !bytes.isEmpty, bytes.baseAddress != nil else { return false }
+
+        var offset = 0
+        var nalCount = 0
+        while offset < bytes.count {
+            guard bytes.count - offset >= headerLength else { return false }
+            var nalLength = 0
+            for index in offset..<(offset + headerLength) {
+                nalLength = (nalLength << 8) | Int(bytes[index])
+            }
+            offset += headerLength
+            guard nalLength > 0, nalLength <= bytes.count - offset else { return false }
+            offset += nalLength
+            nalCount += 1
+        }
+        guard nalCount > 0 else { return false }
+
+        offset = 0
+        while offset < bytes.count {
+            var nalLength = 0
+            for index in offset..<(offset + headerLength) {
+                nalLength = (nalLength << 8) | Int(bytes[index])
+            }
+            offset += headerLength
+            output.append(contentsOf: [0, 0, 0, 1])
+            output.append(bytes.baseAddress!.advanced(by: offset), count: nalLength)
+            offset += nalLength
+        }
+        return true
     }
 }

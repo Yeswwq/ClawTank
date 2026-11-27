@@ -59,11 +59,11 @@ pub enum CtEventKind {
     Stopped = 5,
     /// Server loop failed. Detail: error message.
     Error = 6,
-    /// Client graphics pipeline ready: start capture + encode. Detail: `"WIDTHxHEIGHT"`.
+    /// Client graphics pipeline ready. Detail: `"WIDTHxHEIGHT@SCALE"`; SCALE is percent, 0 = unknown.
     VideoStart = 7,
     /// Graphics pipeline closed: stop capture + encode. Detail: empty.
     VideoStop = 8,
-    /// Client resized: restart capture + encode. Detail: `"WIDTHxHEIGHT@SCALE"` (scale in %).
+    /// Client resized. Detail: `"WIDTHxHEIGHT@SCALE"`; SCALE is percent, 0 = unknown.
     VideoResize = 9,
     /// Repeated failed logins locked out an IP. Detail: `"ip\nminutes"`.
     LockedOut = 10,
@@ -87,6 +87,26 @@ pub enum CtEventKind {
     ClipboardFileRequested = 18,
     /// File contents from the client arrived. Detail: stream id; take with `ct_clipboard_take_file`.
     ClipboardFileContents = 19,
+    /// Client display output resumed; submit a fresh H.264 keyframe. Detail: empty.
+    VideoRefresh = 20,
+    /// RemoteFX Progressive pipeline ready after EGFX disabled AVC. Detail: `"WIDTHxHEIGHT@SCALE"`.
+    ProgressiveStart = 23,
+    /// RemoteFX Progressive stream resized. Detail: `"WIDTHxHEIGHT@SCALE"`.
+    ProgressiveResize = 24,
+    /// EGFX data-plane transport. Detail: `"tcp"` for the main connection,
+    /// `"udp"` after EGFX has migrated to the reliable sideband.
+    VideoTransport = 25,
+    /// Legacy bitmap pipeline ready when neither AVC nor Progressive is available.
+    /// Detail: `"WIDTHxHEIGHT@SCALE"`.
+    BitmapStart = 21,
+    /// Legacy bitmap pipeline resized. Detail: `"WIDTHxHEIGHT@SCALE"`.
+    BitmapResize = 22,
+    /// Structured RDP/EGFX diagnostics. The detail is a `key=value` line set:
+    /// sizes/scales and raw negotiated flags are followed by `egfx_*`,
+    /// `transport=*`, and `legacy_*`. Unknown fields must be ignored by hosts.
+    RdpDiagnostics = 26,
+    /// Initial desktop size is known. Detail: `"WIDTHxHEIGHT"`.
+    InitialScreen = 27,
 }
 
 /// Result of `ct_server_submit_h264`.
@@ -109,6 +129,7 @@ pub struct CtVideoStats {
     pub bytes_sent: u64,
     pub frames_dropped: u64,
     pub frames_acked: u64,
+    pub bytes_acked: u64,
     pub frames_in_flight: u32,
     /// Smoothed send→ack time in microseconds (0 = no acks yet).
     pub ack_latency_us: u32,
@@ -150,6 +171,8 @@ pub enum CtInputKind {
     Button = 5,
     /// `y` = vertical, `x` = horizontal wheel units (120 per notch; +y away from user, +x right).
     Wheel = 6,
+    /// RDPEI contact sample. `code` = contact ID, `flags` = MS-RDPEI contactFlags, `x`/`y` are desktop pixels.
+    Touch = 7,
 }
 
 /// One client input event. Fields not used by `kind` are zero.
@@ -229,6 +252,19 @@ fn input_to_c(event: InputEvent) -> CtInputEvent {
             kind: CtInputKind::Wheel,
             x: horizontal,
             y: vertical,
+            ..base
+        },
+        InputEvent::Touch {
+            contact_id,
+            flags,
+            x,
+            y,
+        } => CtInputEvent {
+            kind: CtInputKind::Touch,
+            code: u16::from(contact_id),
+            flags,
+            x,
+            y,
             ..base
         },
     }
@@ -314,7 +350,8 @@ pub extern "C" fn ct_core_init() -> CtStatus {
 }
 
 /// Routes core logs to `callback`. `filter` uses tracing `EnvFilter` syntax (e.g. `"info"`);
-/// null means `"info"`. Can be installed once per process.
+/// null means `"info"`. Can be installed once per process. Use [`ct_set_log_filter`] to change
+/// the filter after installation.
 ///
 /// # Safety
 /// `filter` must be null or a valid NUL-terminated string.
@@ -348,6 +385,24 @@ pub unsafe extern "C" fn ct_set_log_callback(
         CtStatus::Ok
     } else {
         CtStatus::AlreadyInitialized
+    }
+}
+
+/// Replaces the active tracing filter after [`ct_set_log_callback`] has installed logging.
+/// Returns [`CtStatus::InvalidArgument`] for an invalid filter or before logging is installed.
+///
+/// # Safety
+/// `filter` must be a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_set_log_filter(filter: *const c_char) -> CtStatus {
+    let filter = match unsafe { req_str(filter) } {
+        Ok(filter) => filter,
+        Err(status) => return status,
+    };
+    if crate::logging::set_filter(filter) {
+        CtStatus::Ok
+    } else {
+        CtStatus::InvalidArgument
     }
 }
 
@@ -603,6 +658,127 @@ pub unsafe extern "C" fn ct_server_submit_h264(
         SubmitResult::NotReady => CtSubmitResult::NotReady,
         SubmitResult::NeedKeyframe => CtSubmitResult::NeedKeyframe,
     }
+}
+
+/// Submits the latest BGRA frame for an AVC-disabled client. The core copies rows into a
+/// bounded per-session mailbox; the IronRDP display loop serializes the bitmap encoder.
+///
+/// # Safety
+/// `server` must be null or point to a live `CtServer`. When `len` is non-zero, `data` must
+/// point to `len` readable bytes for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_server_submit_bitmap(
+    server: *const CtServer,
+    data: *const u8,
+    len: usize,
+    width: u16,
+    height: u16,
+    stride: usize,
+) -> bool {
+    let (Some(server), Some(data)) = (unsafe { server.as_ref() }, unsafe { bytes(data, len) })
+    else {
+        return false;
+    };
+    server
+        .handle
+        .video()
+        .submit_bitmap(data, width, height, stride)
+}
+
+/// Returns whether a captured bitmap frame can replace the current mailbox.
+///
+/// # Safety
+/// `server` must be null or point to a live `CtServer`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_server_bitmap_can_accept(server: *const CtServer) -> bool {
+    // SAFETY: null or live per the C ABI contract.
+    unsafe { server.as_ref() }.is_some_and(|server| server.handle.video().can_accept_bitmap())
+}
+
+/// Supplies a full-client-size BGRA diagnostic frame for the initial legacy
+/// test bitmap. Returns false if no initial-screen request is pending, the
+/// dimensions differ from the negotiated desktop, or the payload is malformed.
+///
+/// # Safety
+/// `server` must be null or a live server. `data` must point to at least
+/// `stride * height` readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_server_submit_initial_bitmap(
+    server: *const CtServer,
+    data: *const u8,
+    len: usize,
+    width: u16,
+    height: u16,
+    stride: usize,
+) -> bool {
+    let Some(server) = (unsafe { server.as_ref() }) else {
+        return false;
+    };
+    let row_bytes = usize::from(width) * 4;
+    if len == 0 || stride < row_bytes {
+        return false;
+    }
+    let Some(input) = (unsafe { bytes(data, len) }) else {
+        return false;
+    };
+    if input.len() < stride.saturating_mul(usize::from(height)) {
+        return false;
+    }
+    let Some(packed_len) = row_bytes.checked_mul(usize::from(height)) else {
+        return false;
+    };
+    let packed = if stride == row_bytes {
+        input[..packed_len].to_vec()
+    } else {
+        let mut packed = Vec::with_capacity(packed_len);
+        for row in input.chunks(stride).take(usize::from(height)) {
+            packed.extend_from_slice(&row[..row_bytes]);
+        }
+        packed
+    };
+    server
+        .handle
+        .video()
+        .submit_initial_bitmap(width, height, packed)
+}
+
+/// Encodes and queues the latest BGRA frame through EGFX RemoteFX Progressive.
+///
+/// # Safety
+/// `server` must be null or point to a live `CtServer`. When `len` is non-zero, `data` must
+/// point to `len` readable bytes for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_server_submit_progressive(
+    server: *const CtServer,
+    data: *const u8,
+    len: usize,
+    width: u16,
+    height: u16,
+    stride: usize,
+) -> CtSubmitResult {
+    let (Some(server), Some(data)) = (unsafe { server.as_ref() }, unsafe { bytes(data, len) })
+    else {
+        return CtSubmitResult::NotReady;
+    };
+    match server
+        .handle
+        .video()
+        .submit_progressive(data, width, height, stride)
+    {
+        SubmitResult::Sent => CtSubmitResult::Sent,
+        SubmitResult::NotReady => CtSubmitResult::NotReady,
+        SubmitResult::NeedKeyframe => CtSubmitResult::NeedKeyframe,
+    }
+}
+
+/// Returns whether a captured BGRA frame can be encoded as RemoteFX Progressive now.
+///
+/// # Safety
+/// `server` must be null or point to a live `CtServer`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ct_server_progressive_can_accept(server: *const CtServer) -> bool {
+    // SAFETY: null or live per the C ABI contract.
+    unsafe { server.as_ref() }.is_some_and(|server| server.handle.video().can_accept_progressive())
 }
 
 /// Sets the client-side cursor shape: 32 bpp **BGRA, straight alpha, rows bottom-up**,
@@ -964,6 +1140,7 @@ pub unsafe extern "C" fn ct_server_video_stats(server: *const CtServer) -> CtVid
         bytes_sent: s.bytes_sent,
         frames_dropped: s.frames_dropped,
         frames_acked: s.frames_acked,
+        bytes_acked: s.bytes_acked,
         frames_in_flight: s.frames_in_flight,
         ack_latency_us: s.ack_latency_us,
     }
@@ -1022,17 +1199,175 @@ fn event_to_c(event: &CoreEvent) -> (CtEventKind, String) {
         CoreEvent::ClipboardFileContents { stream_id } => {
             (CtEventKind::ClipboardFileContents, stream_id.to_string())
         }
-        CoreEvent::VideoStart { width, height } => {
-            (CtEventKind::VideoStart, format!("{width}x{height}"))
+        CoreEvent::VideoStart {
+            width,
+            height,
+            scale_percent,
+        } => (
+            CtEventKind::VideoStart,
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
+        ),
+        CoreEvent::InitialScreen { width, height } => {
+            (CtEventKind::InitialScreen, format!("{width}x{height}"))
         }
+        CoreEvent::BitmapStart {
+            width,
+            height,
+            scale_percent,
+        } => (
+            CtEventKind::BitmapStart,
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
+        ),
+        CoreEvent::ProgressiveStart {
+            width,
+            height,
+            scale_percent,
+        } => (
+            CtEventKind::ProgressiveStart,
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
+        ),
         CoreEvent::VideoStop => (CtEventKind::VideoStop, String::new()),
+        CoreEvent::VideoTransport { transport } => (
+            CtEventKind::VideoTransport,
+            match transport {
+                crate::events::VideoTransport::Tcp => "tcp",
+                crate::events::VideoTransport::Udp => "udp",
+            }
+            .to_owned(),
+        ),
+        CoreEvent::RdpDiagnostics(diagnostics) => (
+            CtEventKind::RdpDiagnostics,
+            format!(
+                "width={}\nheight={}\nscale={}\ndevice_scale={}\nclient_info_flags={}\nclient_early_capability_flags={}\nperformance_flags={}\nmonitors={}\nclient_capabilities_known={}\nclient_udp_fecr={}\nclient_soft_sync={}\nmultitransport_offered={}\nmultitransport_response={}\negfx_open={}\negfx_channel={}\negfx_versions={}\negfx_version={}\negfx_avc420={}\negfx_avc444={}\negfx_progressive={}\negfx_bitmap={}\nlegacy_remotefx={}\nlegacy_image_remotefx={}\nlegacy_nscodec={}\nlegacy_qoi={}\nlegacy_qoiz={}\nlegacy_surface_commands={}\nlegacy_selected={}\nselected={}\nclient_queue_depth={}\nclient_ack_suspended={}\nclient_frames_decoded={}\nclient_decode_render_ms={}\nclient_qoe_reports={}\nnetwork_rtt_ms={}\nnetwork_baseline_rtt_ms={}\nnetwork_bandwidth_kbps={}\nclient_rdp_version={}\nclient_build={}\nclient_requested_width={}\nclient_requested_height={}\nclient_color_depth={}\nclient_connection_type={}\nclient_physical_width_mm={}\nclient_physical_height_mm={}\nclient_orientation_degrees={}\ntransport={}",
+                diagnostics.width,
+                diagnostics.height,
+                diagnostics
+                    .desktop_scale_percent
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .device_scale_percent
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics.client_info_flags,
+                diagnostics.client_early_capability_flags,
+                diagnostics.performance_flags,
+                diagnostics.monitor_count,
+                u8::from(diagnostics.client_capabilities_known),
+                u8::from(diagnostics.client_supports_udp_fecr),
+                u8::from(diagnostics.client_supports_soft_sync),
+                u8::from(diagnostics.multitransport_offered),
+                diagnostics
+                    .multitransport_response
+                    .map_or_else(|| "unknown".to_owned(), |value| u8::from(value).to_string()),
+                u8::from(diagnostics.egfx_channel_open),
+                diagnostics
+                    .egfx_channel_id
+                    .map_or_else(|| "none".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .egfx_capability_versions
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+                diagnostics
+                    .egfx_capability_version
+                    .map_or_else(|| "none".to_owned(), |value| value.to_string()),
+                u8::from(diagnostics.egfx_avc420),
+                u8::from(diagnostics.egfx_avc444),
+                u8::from(diagnostics.egfx_progressive),
+                u8::from(diagnostics.egfx_bitmap),
+                u8::from(diagnostics.legacy_remote_fx),
+                u8::from(diagnostics.legacy_image_remote_fx),
+                u8::from(diagnostics.legacy_ns_codec),
+                u8::from(diagnostics.legacy_qoi),
+                u8::from(diagnostics.legacy_qoi_z),
+                diagnostics.legacy_surface_commands,
+                diagnostics
+                    .selected_legacy_codec
+                    .as_deref()
+                    .unwrap_or("unknown"),
+                diagnostics
+                    .selected_video_path
+                    .as_deref()
+                    .unwrap_or("unknown"),
+                diagnostics
+                    .client_queue_depth
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                u8::from(diagnostics.client_ack_suspended),
+                diagnostics
+                    .client_frames_decoded
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .client_decode_render_ms
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics.client_qoe_reports,
+                diagnostics
+                    .network_rtt_ms
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .network_baseline_rtt_ms
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .network_bandwidth_kbps
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .client_rdp_version
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .client_build
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                diagnostics
+                    .client_requested_desktop
+                    .map_or_else(|| "unknown".to_owned(), |value| value.0.to_string()),
+                diagnostics
+                    .client_requested_desktop
+                    .map_or_else(|| "unknown".to_owned(), |value| value.1.to_string()),
+                diagnostics
+                    .client_color_depth
+                    .as_deref()
+                    .unwrap_or("unknown"),
+                diagnostics
+                    .client_connection_type
+                    .as_deref()
+                    .unwrap_or("unknown"),
+                diagnostics
+                    .client_physical_size_mm
+                    .map_or_else(|| "unknown".to_owned(), |value| value.0.to_string()),
+                diagnostics
+                    .client_physical_size_mm
+                    .map_or_else(|| "unknown".to_owned(), |value| value.1.to_string()),
+                diagnostics
+                    .client_orientation_degrees
+                    .map_or_else(|| "unknown".to_owned(), |value| value.to_string()),
+                match diagnostics.transport {
+                    crate::events::VideoTransport::Tcp => "tcp",
+                    crate::events::VideoTransport::Udp => "udp",
+                }
+            ),
+        ),
+        CoreEvent::VideoRefresh => (CtEventKind::VideoRefresh, String::new()),
         CoreEvent::VideoResize {
             width,
             height,
             scale_percent,
         } => (
             CtEventKind::VideoResize,
-            format!("{width}x{height}@{scale_percent}"),
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
+        ),
+        CoreEvent::BitmapResize {
+            width,
+            height,
+            scale_percent,
+        } => (
+            CtEventKind::BitmapResize,
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
+        ),
+        CoreEvent::ProgressiveResize {
+            width,
+            height,
+            scale_percent,
+        } => (
+            CtEventKind::ProgressiveResize,
+            format!("{width}x{height}@{}", scale_percent.unwrap_or(0)),
         ),
         CoreEvent::Listening(a) => (CtEventKind::Listening, a.to_string()),
         CoreEvent::Rejected { peer, reason } => (
@@ -1050,8 +1385,20 @@ fn event_to_c(event: &CoreEvent) -> (CtEventKind, String) {
             peer,
             error: Some(e),
         } => (CtEventKind::ClientDisconnected, format!("{peer}\n{e}")),
-        CoreEvent::ConnectionFailed { peer, error } => {
-            (CtEventKind::ConnectionFailed, format!("{peer}\n{error}"))
+        CoreEvent::ConnectionFailed {
+            peer,
+            error,
+            credentials_rejected,
+        } => {
+            let classification = if *credentials_rejected {
+                "authentication"
+            } else {
+                "handshake"
+            };
+            (
+                CtEventKind::ConnectionFailed,
+                format!("{peer}\n{classification}\n{error}"),
+            )
         }
         CoreEvent::Stopped => (CtEventKind::Stopped, String::new()),
         CoreEvent::Error(e) => (CtEventKind::Error, e.clone()),
@@ -1110,6 +1457,82 @@ mod tests {
     }
 
     #[test]
+    fn video_transport_events_round_trip_through_ffi_strings() {
+        assert_eq!(
+            event_to_c(&CoreEvent::VideoTransport {
+                transport: crate::events::VideoTransport::Tcp,
+            }),
+            (CtEventKind::VideoTransport, "tcp".to_owned())
+        );
+        assert_eq!(
+            event_to_c(&CoreEvent::VideoTransport {
+                transport: crate::events::VideoTransport::Udp,
+            }),
+            (CtEventKind::VideoTransport, "udp".to_owned())
+        );
+    }
+
+    #[test]
+    fn rdp_diagnostics_event_round_trips_structured_fields() {
+        let event = CoreEvent::RdpDiagnostics(Box::new(crate::events::RdpDiagnosticsEvent {
+            width: 2316,
+            height: 1080,
+            desktop_scale_percent: Some(200),
+            device_scale_percent: Some(180),
+            client_info_flags: 213_435,
+            client_early_capability_flags: 0x190,
+            performance_flags: 6,
+            monitor_count: 1,
+            client_capabilities_known: true,
+            client_supports_udp_fecr: true,
+            client_supports_soft_sync: true,
+            multitransport_offered: true,
+            multitransport_response: Some(true),
+            egfx_channel_open: true,
+            egfx_channel_id: Some(7),
+            egfx_capability_versions: vec![0x0801_0500, 0x0a04_0000],
+            egfx_capability_version: Some(0x0a04_0000),
+            egfx_avc420: false,
+            egfx_avc444: false,
+            egfx_progressive: true,
+            egfx_bitmap: false,
+            legacy_remote_fx: false,
+            legacy_image_remote_fx: true,
+            legacy_ns_codec: true,
+            legacy_qoi: false,
+            legacy_qoi_z: false,
+            legacy_surface_commands: 0x12,
+            selected_legacy_codec: Some("NSCodec".to_owned()),
+            selected_video_path: Some("RemoteFXProgressive".to_owned()),
+            client_queue_depth: Some(3),
+            client_ack_suspended: false,
+            client_frames_decoded: Some(42),
+            client_decode_render_ms: Some(17),
+            client_qoe_reports: 2,
+            network_rtt_ms: Some(18),
+            network_baseline_rtt_ms: Some(14),
+            network_bandwidth_kbps: Some(125_000),
+            client_rdp_version: Some(0x0008_0009),
+            client_build: Some(26_000),
+            client_requested_desktop: Some((2316, 1080)),
+            client_color_depth: Some("32 bpp".to_owned()),
+            client_connection_type: Some("LAN".to_owned()),
+            client_physical_size_mm: Some((280, 210)),
+            client_orientation_degrees: Some(90),
+            transport: crate::events::VideoTransport::Udp,
+        }));
+        let (kind, detail) = event_to_c(&event);
+        assert_eq!(kind, CtEventKind::RdpDiagnostics);
+        assert!(detail.contains("width=2316"));
+        assert!(detail.contains("client_udp_fecr=1"));
+        assert!(detail.contains(&format!("egfx_version={}", 0x0a04_0000)));
+        assert!(detail.contains("selected=RemoteFXProgressive"));
+        assert!(detail.contains("client_decode_render_ms=17"));
+        assert!(detail.contains("client_build=26000"));
+        assert!(detail.contains("transport=udp"));
+    }
+
+    #[test]
     fn null_arguments_are_rejected() {
         let mut status = CtStatus::Ok;
         // SAFETY: exercising the null checks.
@@ -1143,6 +1566,7 @@ mod tests {
                 CtSubmitResult::NotReady
             );
             assert!(!ct_server_video_can_accept(null()));
+            assert!(!ct_server_submit_initial_bitmap(null(), null(), 0, 0, 0, 0));
             assert_eq!(ct_server_video_stats(null()), CtVideoStats::default());
             ct_server_stop(null_mut());
             ct_string_free(null_mut());
@@ -1170,6 +1594,40 @@ mod tests {
         assert_eq!(
             (e.kind, e.code, e.extended, e.down),
             (CtInputKind::Key, 0x5b, true, false)
+        );
+        let e = input_to_c(InputEvent::Touch {
+            contact_id: 3,
+            flags: 0x1b,
+            x: 120,
+            y: 240,
+        });
+        assert_eq!(
+            (e.kind, e.code, e.flags, e.x, e.y),
+            (CtInputKind::Touch, 3, 0x1b, 120, 240)
+        );
+    }
+
+    #[test]
+    fn progressive_events_have_distinct_abi_kinds() {
+        assert_eq!(
+            event_to_c(&CoreEvent::ProgressiveStart {
+                width: 1512,
+                height: 982,
+                scale_percent: Some(200),
+            }),
+            (CtEventKind::ProgressiveStart, "1512x982@200".to_owned())
+        );
+        assert_eq!(
+            event_to_c(&CoreEvent::ProgressiveResize {
+                width: 1600,
+                height: 900,
+                scale_percent: None,
+            }),
+            (CtEventKind::ProgressiveResize, "1600x900@0".to_owned())
+        );
+        assert_ne!(
+            CtEventKind::ProgressiveStart as i32,
+            CtEventKind::BitmapStart as i32
         );
     }
 

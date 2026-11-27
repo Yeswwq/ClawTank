@@ -3,7 +3,7 @@
 #
 # macOS ties Screen Recording / Accessibility grants to an app's code signature. Ad-hoc
 # signatures change on every build, so grants would be lost after each rebuild. This creates
-# a self-signed "ClawTank Dev" identity in a *separate* keychain with its own random password
+# a self-signed identity in a *separate* keychain with its own password
 # (your login keychain is never touched or unlocked), and signs the app with it.
 #
 #   scripts/dev-signing.sh setup          # idempotent; creates the keychain + identity
@@ -12,14 +12,15 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-state="$repo/build/dev-signing"
-keychain="$HOME/Library/Keychains/clawtank-dev.keychain-db"
-name="ClawTank Dev"
+keychain_name="${CLAWTANK_DEV_KEYCHAIN_NAME:-yeswwq}"
+name="${CLAWTANK_DEV_SIGNING_NAME:-yeswwq}"
+state="$repo/build/dev-signing/$keychain_name"
+keychain="$HOME/Library/Keychains/$keychain_name.keychain-db"
 
 password() { cat "$state/keychain-password"; }
 
 identity_hash() {
-    security find-identity -p codesigning "$keychain" 2>/dev/null \
+    security find-identity -v -p codesigning "$keychain" 2>/dev/null \
         | awk -v n="\"$name\"" '$0 ~ n { print $2; exit }'
 }
 
@@ -32,8 +33,13 @@ setup() {
 
     mkdir -p "$state" && chmod 700 "$state"
     umask 077
-    openssl rand -hex 24 > "$state/keychain-password"
+    if [[ -n "${CLAWTANK_DEV_SIGNING_PASSWORD:-}" ]]; then
+        printf '%s' "$CLAWTANK_DEV_SIGNING_PASSWORD" > "$state/keychain-password"
+    else
+        openssl rand -hex 24 > "$state/keychain-password"
+    fi
     security create-keychain -p "$(password)" "$keychain"
+    chmod 600 "$keychain"
     security set-keychain-settings "$keychain"   # no auto-lock timeout
     security unlock-keychain -p "$(password)" "$keychain"
 
@@ -44,13 +50,21 @@ setup() {
         -addext "basicConstraints=critical,CA:false" \
         -addext "keyUsage=critical,digitalSignature" \
         -addext "extendedKeyUsage=critical,codeSigning" 2>/dev/null
-    # `security` wants a PKCS#1 ("traditional") RSA key; OpenSSL 3 writes PKCS#8 by default.
-    openssl rsa -in "$tmp/key.pem" -out "$tmp/key-rsa.pem" -traditional 2>/dev/null
+    # `security` wants a PKCS#1 ("traditional") RSA key. `pkey` exports that on both
+    # LibreSSL (the macOS system openssl) and OpenSSL 3.
+    if [[ "$(openssl version)" == LibreSSL* ]]; then
+        openssl rsa -in "$tmp/key.pem" -out "$tmp/key-rsa.pem" 2>/dev/null
+    else
+        openssl pkey -in "$tmp/key.pem" -traditional -out "$tmp/key-rsa.pem" 2>/dev/null
+    fi
     security import "$tmp/key-rsa.pem" -k "$keychain" -t priv -f openssl -T /usr/bin/codesign >/dev/null
     security import "$tmp/cert.pem" -k "$keychain" -t cert -f openssl >/dev/null
+    # macOS does not list a self-signed certificate as a valid signing identity until
+    # the certificate is explicitly trusted in its keychain.
+    security add-trusted-cert -d -r trustRoot -k "$keychain" "$tmp/cert.pem" >/dev/null
     # Let codesign use the key without a GUI prompt.
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(password)" "$keychain" >/dev/null
-    cp "$tmp/cert.pem" "$state/ClawTankDev.cer.pem"
+    cp "$tmp/cert.pem" "$state/$keychain_name.cer.pem"
 
     [[ -n "$(identity_hash)" ]] || { echo "error: identity not found after import" >&2; exit 1; }
     echo "created dev signing identity: $name ($(identity_hash)) in $keychain"

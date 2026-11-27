@@ -1,6 +1,7 @@
 name: ClawTank
 options:
   bundleIdPrefix: dev.clawtank
+  developmentLanguage: en
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -13,20 +14,25 @@ settings:
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: YES
+    "RUST_TARGET[arch=arm64]": aarch64-apple-darwin
+    "RUST_TARGET[arch=x86_64]": x86_64-apple-darwin
     # Rust core (built by `make core`) — header + module map and static library.
     SWIFT_INCLUDE_PATHS: $(SRCROOT)/../core/include
-    LIBRARY_SEARCH_PATHS: $(SRCROOT)/../core/target/release
+    LIBRARY_SEARCH_PATHS: $(SRCROOT)/../core/target/$(RUST_TARGET)/release
 targets:
   ClawTank:
     type: application
     platform: macOS
     sources: [ClawTank]
+    resources:
+      - path: ClawTank/Resources
     info:
       path: ClawTank/Info.plist
       properties:
         CFBundleDisplayName: ClawTank
-        CFBundleShortVersionString: "0.9.0"
-        CFBundleVersion: "9"
+        CFBundleLocalizations: [zh-Hans, en]
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "10"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "Copyright © 2026 ClawTank contributors. Apache-2.0."
@@ -42,10 +48,10 @@ targets:
         script: |
           set -e
           dest="$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/clawtank-mcp"
-          cp "$SRCROOT/../core/target/release/clawtank-mcp" "$dest"
+          cp "$SRCROOT/../core/target/$(RUST_TARGET)/release/clawtank-mcp" "$dest"
           codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime --timestamp=none "$dest"
         inputFiles:
-          - $(SRCROOT)/../core/target/release/clawtank-mcp
+          - $(SRCROOT)/../core/target/$(RUST_TARGET)/release/clawtank-mcp
         outputFiles:
           - $(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/clawtank-mcp
   ClawTankTests:

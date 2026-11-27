@@ -21,7 +21,7 @@ A fresh Mac goes from DMG to first connection in under 2 minutes by following on
   - keep awake, start at login, stats overlay
   - Network changes restart the server.
 - **`Diagnostics`:** exports a .zip with this process's recent unified-log entries (`OSLogStore`), the settings with secrets redacted, the audit log, the app/core/macOS versions and the display list. Passwords and keys are never included.
-- **Password:** user-chosen during onboarding and in Settings. Minimum 12 characters; the strength meter rejects very common or repetitive passwords. The random password stays as the initial default.
+- **Password:** user-chosen during onboarding and reset in Settings. Minimum 8 characters, including uppercase, lowercase and a special character; the strength meter also rejects very common, repetitive or username-derived passwords. The generated default meets the same character-class rules.
 
 ### UI
 - **Onboarding window** (first launch, or from the menu):

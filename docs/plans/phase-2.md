@@ -45,7 +45,7 @@ The only copy is the compressed bitstream crossing into Rust, a few KB to tens o
 - `StatsOverlay` (toggle in the menu): Core Image text composited into a pooled pixel buffer, only when enabled. The menu also shows live fps, bitrate and encode ms.
 
 ### Dev signing (user decision)
-`scripts/dev-signing.sh` creates `~/Library/Keychains/clawtank-dev.keychain-db` with a random password, which is kept in git-ignored `build/dev-signing/`. It holds a self-signed "ClawTank Dev" code-signing identity, and `make app` signs with it. Rebuilds keep the same identity, so Screen Recording is granted once. The login keychain isn't touched (ADR-015).
+`scripts/dev-signing.sh` creates `~/Library/Keychains/yeswwq.keychain-db` with its own password, which is kept in git-ignored `build/dev-signing/yeswwq/`. It holds a self-signed `yeswwq` code-signing identity, and `make app` signs with it. Rebuilds keep the same identity, so Screen Recording is granted once. The login keychain isn't touched (ADR-015).
 
 ### Tests and benchmarks
 - **Rust unit tests:** handle capability negotiation through `GraphicsPipelineServer`; feed fake H.264 and assert `WireToSurface1` with AVC420; backpressure forces an IDR.

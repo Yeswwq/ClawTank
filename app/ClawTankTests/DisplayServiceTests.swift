@@ -64,6 +64,56 @@ final class DisplayServiceTests: XCTestCase {
                        "Retina client gets a HiDPI display at its exact pixel size")
     }
 
+    func testPortraitResolutionWithinAreaBudgetIsPreserved() async {
+        let provider = FakeProvider()
+        let service = makeService(physical: [], provider: provider)
+
+        let target = await service.prepare(width: 1440, height: 2560, scalePercent: nil, mode: .virtual)
+
+        XCTAssertTrue(target?.isVirtual == true)
+        XCTAssertEqual(provider.requests.first, Request(width: 1440, height: 2560, hiDPI: false))
+    }
+
+    func testDisplaySizeOutsideAreaBudgetIsRejectedBeforeProviderUse() async {
+        let provider = FakeProvider()
+        let service = makeService(physical: [7], provider: provider)
+
+        let target = await service.prepare(width: 3100, height: 3000, scalePercent: nil, mode: .virtual)
+
+        XCTAssertNil(target)
+        XCTAssertTrue(provider.requests.isEmpty)
+    }
+
+    func testClientHintUsesScaleWithoutMultiplyingRequestedPixels() async {
+        let provider = FakeProvider()
+        let service = makeService(physical: [], provider: provider)
+
+        _ = await service.prepare(width: 1512, height: 982, scalePercent: 200, mode: .virtual,
+                                  density: .clientHint)
+
+        XCTAssertEqual(provider.requests.first, Request(width: 1512, height: 982, hiDPI: true))
+    }
+
+    func testUnknownClientScaleDoesNotInferHiDPIFromLargeResolution() async {
+        let provider = FakeProvider()
+        let service = makeService(physical: [], provider: provider)
+
+        _ = await service.prepare(width: 3024, height: 1964, scalePercent: nil, mode: .virtual,
+                                  density: .clientHint)
+
+        XCTAssertEqual(provider.requests.first, Request(width: 3024, height: 1964, hiDPI: false))
+    }
+
+    func testHiDPIFallsBackForOddRequestedDimensions() async {
+        let provider = FakeProvider()
+        let service = makeService(physical: [], provider: provider)
+
+        _ = await service.prepare(width: 1513, height: 983, scalePercent: nil, mode: .virtual,
+                                  density: .hiDPI)
+
+        XCTAssertEqual(provider.requests.first, Request(width: 1513, height: 983, hiDPI: false))
+    }
+
     func testResizeReconfiguresInPlaceAndReleaseRemoves() async throws {
         let provider = FakeProvider()
         let service = makeService(physical: [7], provider: provider)
@@ -111,11 +161,16 @@ final class DisplayServiceTests: XCTestCase {
         XCTAssertNil(target)
     }
 
-    func testHiDPIHeuristicAndModes() {
-        XCTAssertTrue(DisplayService.wantsHiDPI(width: 1512, height: 982, scalePercent: 200))
-        XCTAssertFalse(DisplayService.wantsHiDPI(width: 3024, height: 1964, scalePercent: 100))
-        XCTAssertTrue(DisplayService.wantsHiDPI(width: 3024, height: 1964, scalePercent: nil))
-        XCTAssertFalse(DisplayService.wantsHiDPI(width: 1512, height: 982, scalePercent: nil))
+    func testDensityPolicyUsesExplicitModeAndValidatedClientHint() {
+        XCTAssertFalse(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: nil))
+        XCTAssertFalse(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: 0))
+        XCTAssertFalse(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: 149))
+        XCTAssertTrue(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: 150))
+        XCTAssertTrue(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: 200))
+        XCTAssertFalse(VirtualDisplayDensity.clientHint.usesHiDPI(scalePercent: 501))
+        XCTAssertFalse(VirtualDisplayDensity.standard.usesHiDPI(scalePercent: 200))
+        XCTAssertTrue(VirtualDisplayDensity.hiDPI.usesHiDPI(scalePercent: nil))
+
         let settings = CGVirtualDisplayHandle.settings(widthPixels: 3024, heightPixels: 1964, hiDPI: true)
         XCTAssertEqual(settings.modes.first?.width, 1512, "HiDPI mode is in points")
         XCTAssertEqual(settings.hiDPI, 1)

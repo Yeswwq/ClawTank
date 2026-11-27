@@ -7,6 +7,7 @@
 // Mac (Phase 9). See docs/architecture.md.
 
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -16,9 +17,15 @@ final class AppModel: ObservableObject {
     let server: ServerController
     let agents: AgentService
     let windows: WindowManager
+    private var subscriptions: Set<AnyCancellable> = []
 
     init() {
         settings = AppSettings()
+        _ = CoreBridge.shared.setLogLevel(settings.rustLogLevel)
+        settings.$rustLogLevel
+            .dropFirst()
+            .sink { level in _ = CoreBridge.shared.setLogLevel(level) }
+            .store(in: &subscriptions)
         server = ServerController(settings: settings)
         agents = AgentService(settings: settings, audit: server.audit, human: server.humanActivity)
         windows = WindowManager(server: server, agents: agents)
@@ -65,10 +72,11 @@ private struct MenuBarIcon: View {
     @ObservedObject var agents: AgentService
     var body: some View {
         if let agent = agents.activeAgent {
-            Image(systemName: "cursorarrow.rays").accessibilityLabel("ClawTank: agent \(agent) is in control")
+            Image(systemName: "cursorarrow.rays")
+                .accessibilityLabel(String(localized: "ClawTank: agent \(agent) is in control"))
         } else {
             Image(systemName: server.menuBarSymbol)
-                .accessibilityLabel("ClawTank: \(server.statusText)")
+                .accessibilityLabel(String(localized: "ClawTank: \(server.statusText)"))
         }
     }
 }
@@ -82,18 +90,20 @@ struct StatusMenu: View {
     var body: some View {
         Text(server.statusText)
         if let agent = agents.activeAgent {
-            Text("Agent “\(agent)” is in control" + (agents.lastAction.map { ": \($0)" } ?? ""))
+            Text(agentStatusText(agent))
             Button("Stop Agents") { agents.stopAgents() }
         }
         if let session = server.session {
-            Text("From \(session.peer) since \(session.since.formatted(date: .omitted, time: .shortened))")
+            Text(String(localized:
+                "From \(session.peer) since \(session.since.formatted(date: .omitted, time: .shortened))"))
             if let display = server.displayDescription { Text(display) }
             if let video = server.videoStatus { Text(video) }
             if let transfer = server.transferStatus { Text(transfer) }
             Button("Disconnect \(session.peer)") { server.disconnectClient() }
         }
         if server.screenLocked {
-            Text("This Mac is locked: remote clients see only the wallpaper until it's unlocked")
+            Text(String(localized:
+                "This Mac is locked: remote clients see only the wallpaper until it's unlocked"))
         }
         if let notice = server.lastNotice {
             Text(notice)
@@ -112,7 +122,7 @@ struct StatusMenu: View {
             Button("Start Sharing") { server.start() }
         }
         Divider()
-        Toggle("Show Stats Overlay", isOn: $settings.showsStatsOverlay)
+        Toggle("Show connection diagnostics overlay", isOn: $settings.showsStatsOverlay)
         Picker("Display", selection: $settings.displayMode) {
             ForEach(DisplayMode.allCases) { Text($0.title).tag($0) }
         }
@@ -129,15 +139,22 @@ struct StatusMenu: View {
         }
         .keyboardShortcut("q")
     }
+
+    private func agentStatusText(_ agent: String) -> String {
+        if let action = agents.lastAction {
+            return String(localized: "Agent “\(agent)” is in control: \(action)")
+        }
+        return String(localized: "Agent “\(agent)” is in control")
+    }
 }
 
 extension ServerController {
     var statusText: String {
         switch status {
-        case .stopped: "Sharing is off"
-        case .listening: "Ready — connect to \(address)"
-        case .connected(let peer): "Connected: \(peer)"
-        case .failed(let message): "Error: \(message)"
+        case .stopped: String(localized: "Sharing is off")
+        case .listening: String(localized: "Ready — connect to \(address)")
+        case .connected(let peer): String(localized: "Connected: \(peer)")
+        case .failed(let message): String(localized: "Error: \(message)")
         }
     }
 

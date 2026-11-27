@@ -38,17 +38,17 @@ final class WindowManager {
     private func content(for kind: Kind) -> Content {
         switch kind {
         case .setup:
-            Content(title: "Set Up ClawTank",
+            Content(title: String(localized: "Set Up ClawTank"),
                     view: AnyView(OnboardingView(server: server, settings: server.settings) { [weak self] in
                         self?.close(.setup)
                     }),
                     size: NSSize(width: 620, height: 520))
         case .settings:
-            Content(title: "ClawTank Settings", view: AnyView(SettingsView(server: server, settings: server.settings,
-                                                                         agents: agents)),
+            Content(title: String(localized: "ClawTank Settings"),
+                    view: AnyView(SettingsView(server: server, settings: server.settings, agents: agents)),
                     size: NSSize(width: 620, height: 520))
         case .log:
-            Content(title: "Connection Log", view: AnyView(ConnectionLogView(audit: server.audit)),
+            Content(title: String(localized: "Connection Log"), view: AnyView(ConnectionLogView(audit: server.audit)),
                     size: NSSize(width: 760, height: 440))
         }
     }

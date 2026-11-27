@@ -89,7 +89,7 @@ typedef enum {
    */
   CT_EVENT_KIND_ERROR = 6,
   /**
-   * Client graphics pipeline ready: start capture + encode. Detail: `"WIDTHxHEIGHT"`.
+   * Client graphics pipeline ready. Detail: `"WIDTHxHEIGHT@SCALE"`; SCALE is percent, 0 = unknown.
    */
   CT_EVENT_KIND_VIDEO_START = 7,
   /**
@@ -97,7 +97,7 @@ typedef enum {
    */
   CT_EVENT_KIND_VIDEO_STOP = 8,
   /**
-   * Client resized: restart capture + encode. Detail: `"WIDTHxHEIGHT@SCALE"` (scale in %).
+   * Client resized. Detail: `"WIDTHxHEIGHT@SCALE"`; SCALE is percent, 0 = unknown.
    */
   CT_EVENT_KIND_VIDEO_RESIZE = 9,
   /**
@@ -142,6 +142,42 @@ typedef enum {
    * File contents from the client arrived. Detail: stream id; take with `ct_clipboard_take_file`.
    */
   CT_EVENT_KIND_CLIPBOARD_FILE_CONTENTS = 19,
+  /**
+   * Client display output resumed; submit a fresh H.264 keyframe. Detail: empty.
+   */
+  CT_EVENT_KIND_VIDEO_REFRESH = 20,
+  /**
+   * RemoteFX Progressive pipeline ready after EGFX disabled AVC. Detail: `"WIDTHxHEIGHT@SCALE"`.
+   */
+  CT_EVENT_KIND_PROGRESSIVE_START = 23,
+  /**
+   * RemoteFX Progressive stream resized. Detail: `"WIDTHxHEIGHT@SCALE"`.
+   */
+  CT_EVENT_KIND_PROGRESSIVE_RESIZE = 24,
+  /**
+   * EGFX data-plane transport. Detail: `"tcp"` for the main connection,
+   * `"udp"` after EGFX has migrated to the reliable sideband.
+   */
+  CT_EVENT_KIND_VIDEO_TRANSPORT = 25,
+  /**
+   * Legacy bitmap pipeline ready when neither AVC nor Progressive is available.
+   * Detail: `"WIDTHxHEIGHT@SCALE"`.
+   */
+  CT_EVENT_KIND_BITMAP_START = 21,
+  /**
+   * Legacy bitmap pipeline resized. Detail: `"WIDTHxHEIGHT@SCALE"`.
+   */
+  CT_EVENT_KIND_BITMAP_RESIZE = 22,
+  /**
+   * Structured RDP/EGFX diagnostics. The detail is a `key=value` line set:
+   * sizes/scales and raw negotiated flags are followed by `egfx_*`,
+   * `transport=*`, and `legacy_*`. Unknown fields must be ignored by hosts.
+   */
+  CT_EVENT_KIND_RDP_DIAGNOSTICS = 26,
+  /**
+   * Initial desktop size is known. Detail: `"WIDTHxHEIGHT"`.
+   */
+  CT_EVENT_KIND_INITIAL_SCREEN = 27,
 } CtEventKind;
 
 /**
@@ -176,6 +212,10 @@ typedef enum {
    * `y` = vertical, `x` = horizontal wheel units (120 per notch; +y away from user, +x right).
    */
   CT_INPUT_KIND_WHEEL = 6,
+  /**
+   * RDPEI contact sample. `code` = contact ID, `flags` = MS-RDPEI contactFlags, `x`/`y` are desktop pixels.
+   */
+  CT_INPUT_KIND_TOUCH = 7,
 } CtInputKind;
 
 /**
@@ -297,6 +337,7 @@ typedef struct {
   uint64_t bytes_sent;
   uint64_t frames_dropped;
   uint64_t frames_acked;
+  uint64_t bytes_acked;
   uint32_t frames_in_flight;
   /**
    * Smoothed send→ack time in microseconds (0 = no acks yet).
@@ -321,12 +362,22 @@ CtStatus ct_core_init(void);
 
 /**
  * Routes core logs to `callback`. `filter` uses tracing `EnvFilter` syntax (e.g. `"info"`);
- * null means `"info"`. Can be installed once per process.
+ * null means `"info"`. Can be installed once per process. Use [`ct_set_log_filter`] to change
+ * the filter after installation.
  *
  * # Safety
  * `filter` must be null or a valid NUL-terminated string.
  */
 CtStatus ct_set_log_callback(CtLogCallback callback, const char *filter);
+
+/**
+ * Replaces the active tracing filter after [`ct_set_log_callback`] has installed logging.
+ * Returns [`CtStatus::InvalidArgument`] for an invalid filter or before logging is installed.
+ *
+ * # Safety
+ * `filter` must be a valid NUL-terminated UTF-8 string.
+ */
+CtStatus ct_set_log_filter(const char *filter);
 
 /**
  * Generates a self-signed RSA-2048 TLS identity for `common_name` (e.g. `"macmini.local"`).
@@ -412,6 +463,67 @@ CtSubmitResult ct_server_submit_h264(const CtServer *server,
                                      bool keyframe,
                                      uint16_t width,
                                      uint16_t height);
+
+/**
+ * Submits the latest BGRA frame for an AVC-disabled client. The core copies rows into a
+ * bounded per-session mailbox; the IronRDP display loop serializes the bitmap encoder.
+ *
+ * # Safety
+ * `server` must be null or point to a live `CtServer`. When `len` is non-zero, `data` must
+ * point to `len` readable bytes for the duration of this call.
+ */
+bool ct_server_submit_bitmap(const CtServer *server,
+                             const uint8_t *data,
+                             size_t len,
+                             uint16_t width,
+                             uint16_t height,
+                             size_t stride);
+
+/**
+ * Returns whether a captured bitmap frame can replace the current mailbox.
+ *
+ * # Safety
+ * `server` must be null or point to a live `CtServer`.
+ */
+bool ct_server_bitmap_can_accept(const CtServer *server);
+
+/**
+ * Supplies a full-client-size BGRA diagnostic frame for the initial legacy
+ * test bitmap. Returns false if no initial-screen request is pending, the
+ * dimensions differ from the negotiated desktop, or the payload is malformed.
+ *
+ * # Safety
+ * `server` must be null or a live server. `data` must point to at least
+ * `stride * height` readable bytes.
+ */
+bool ct_server_submit_initial_bitmap(const CtServer *server,
+                                     const uint8_t *data,
+                                     size_t len,
+                                     uint16_t width,
+                                     uint16_t height,
+                                     size_t stride);
+
+/**
+ * Encodes and queues the latest BGRA frame through EGFX RemoteFX Progressive.
+ *
+ * # Safety
+ * `server` must be null or point to a live `CtServer`. When `len` is non-zero, `data` must
+ * point to `len` readable bytes for the duration of this call.
+ */
+CtSubmitResult ct_server_submit_progressive(const CtServer *server,
+                                            const uint8_t *data,
+                                            size_t len,
+                                            uint16_t width,
+                                            uint16_t height,
+                                            size_t stride);
+
+/**
+ * Returns whether a captured BGRA frame can be encoded as RemoteFX Progressive now.
+ *
+ * # Safety
+ * `server` must be null or point to a live `CtServer`.
+ */
+bool ct_server_progressive_can_accept(const CtServer *server);
 
 /**
  * Sets the client-side cursor shape: 32 bpp **BGRA, straight alpha, rows bottom-up**,

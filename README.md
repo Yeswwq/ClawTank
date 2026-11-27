@@ -168,7 +168,9 @@ No. ClawTank makes no network connections of its own. It only accepts incoming R
 ## Known limitations
 
 - One monitor per session: a multi-monitor client gets one resizable desktop. No AVC444 (full-colour 4:4:4) yet; Retina sessions give crisp text instead.
-- Not notarized yet, so you need the one-time "Open Anyway" step. Apple silicon builds only.
+- 尚未公证，首次打开需要执行一次 “Open Anyway”。上游发布流程以 Apple Silicon
+  为基线；Intel/x86_64 支持在 `macos26-intel-nvidia-rdp` 分支跟踪，本机 macOS
+  26.7.3 + Xcode 26.6 已通过完整 App 构建、XCTest、lint 和 Intel 发布打包。
 - No automatic updates yet: watch [Releases](https://github.com/HMAKT99/ClawTank/releases) on GitHub.
 - See [CHANGELOG.md](CHANGELOG.md) and [docs/testing.md](docs/testing.md) for what's been verified.
 
@@ -186,10 +188,14 @@ We're looking for people to try 0.9 on real setups: Windows and Mac clients, iPa
 
 ## Building from source
 
-Requirements: macOS 14+, Xcode 16+, Rust (stable, via rustup), `brew install xcodegen swiftlint`.
+要求：macOS 14+、完整 Xcode 16+、由官方 rustup 管理的 Rust stable、XcodeGen
+和 SwiftLint。安装 Rust 后运行 `source "$HOME/.cargo/env"`；在使用 MacPorts
+的主机上，可通过 `sudo port install xcodegen swiftlint` 安装辅助工具。MacPorts
+安装这两个工具需要完整 Xcode，只有 Command Line Tools 时不能完成安装。
 
 ```sh
 make build        # Rust core + ClawTank.app (app/build/Build/Products/Release/)
+make build ARCH=x86_64  # Intel 构建（Rust 与 Xcode 使用同一 x86_64 target）
 make dev-signing  # one-time: a local signing identity so permissions survive rebuilds
 make test         # cargo test + XCTest
 make lint         # clippy -D warnings, rustfmt, swiftlint
@@ -200,7 +206,7 @@ To work in Xcode, run `make core project`, then open `app/ClawTank.xcodeproj`. A
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and conventions, including the clean-room rule. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). For help, see [SUPPORT.md](SUPPORT.md). To report a vulnerability privately, see [SECURITY.md](SECURITY.md).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and conventions, including interoperability analysis and reuse boundaries. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). For help, see [SUPPORT.md](SUPPORT.md). To report a vulnerability privately, see [SECURITY.md](SECURITY.md).
 
 ## License
 

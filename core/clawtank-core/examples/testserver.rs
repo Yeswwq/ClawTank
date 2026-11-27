@@ -63,16 +63,33 @@ fn main() -> clawtank_core::Result<()> {
                 CoreEvent::ClientDisconnected { peer, error } => {
                     format!("disconnected {peer} {error:?}")
                 }
-                CoreEvent::ConnectionFailed { peer, error } => format!("failed {peer} {error}"),
+                CoreEvent::ConnectionFailed {
+                    peer,
+                    error,
+                    credentials_rejected,
+                } => format!("failed {peer} {error} credentials_rejected={credentials_rejected}"),
                 CoreEvent::Stopped => "stopped".to_owned(),
                 CoreEvent::Error(e) => format!("error {e}"),
-                CoreEvent::VideoStart { width, height } => format!("video-start {width}x{height}"),
+                CoreEvent::VideoStart {
+                    width,
+                    height,
+                    scale_percent,
+                } => format!(
+                    "video-start {width}x{height}@{}",
+                    scale_percent.unwrap_or(0)
+                ),
                 CoreEvent::VideoStop => "video-stop".to_owned(),
+                CoreEvent::VideoTransport { transport } => {
+                    format!("video-transport {transport:?}")
+                }
                 CoreEvent::VideoResize {
                     width,
                     height,
                     scale_percent,
-                } => format!("video-resize {width}x{height}@{scale_percent}"),
+                } => format!(
+                    "video-resize {width}x{height}@{}",
+                    scale_percent.unwrap_or(0)
+                ),
                 other => format!("{other:?}"),
             };
             println!("EVENT {line}");

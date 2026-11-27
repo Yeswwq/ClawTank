@@ -2,7 +2,46 @@
 
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-11-27
+
+### Security
+- Require RDP passwords to be at least 8 characters with uppercase, lowercase and special characters; generated defaults satisfy the same rules, and Settings labels the action as resetting the password.
+
+### Localization
+- Add a Simplified Chinese (`zh-Hans`) interface catalog with English as the development and fallback language, plus a macOS-managed per-app language setting. See `docs/localization.md` for the maintenance workflow.
+
+### Diagnostics
+- Add a client-visible connection diagnostics overlay. It covers the initial
+  test bitmap at full client resolution, then becomes a compact top-left badge
+  after the first real AVC/Progressive output is queued. It reports session,
+  EGFX channel/capability, codec and legacy bitmap format offers, TCP/UDP,
+  UDP_FECR/Soft-Sync and Multitransport response state from structured events.
+  The overlay is enabled by default and can be turned off in Settings.
+- Exported diagnostics now record the running app path, bundle identity, architecture, code-signature metadata, and Screen Recording/Accessibility preflight results so TCC permission mismatches between installed and rebuilt copies are directly identifiable.
+- Suppress raw `ConnectInitial` and CredSSP `TsRequest` debug payloads at the Rust log bridge, correlate established RDP sessions with the accepted peer, and distinguish authentication failures from other pre-session handshake failures in the connection audit log.
+- Restore the Android-compatible RDP 6.0 32-bpp bitmap `cbScanWidth` value to the byte
+  count per row (`256` for a 64-pixel tile), matching xrdp/FreeRDP behavior and the
+  decoder's `rowDelta` expectation.
+
+### Video
+- Add reliable RDP UDP multitransport for the EGFX data path. The TLS/NLA
+  session still starts on TCP; when both peers support `UDP_FECR` and
+  `SOFT_SYNC_TCP_TO_UDP`, EGFX moves to an RDPEUDP2 + TLS + RDPEMT sideband on
+  the same port and falls back to TCP if the sideband cannot be established.
+- Handle the EGFX `SUSPEND_FRAME_ACKNOWLEDGEMENT` signal in ClawTank's timing
+  table so clients that intentionally pause acknowledgements do not leave
+  stale diagnostic samples behind; IronRDP continues to own the protocol
+  frame-window state.
+- Tag encoded H.264 access units by reference-chain generation so output
+  produced before a newer forced IDR cannot be sent after it. This keeps
+  resume/refresh recovery on a valid decoder chain without blocking the
+  VideoToolbox callback thread.
+- Add the existing IronRDP RemoteFX Progressive EGFX sender as the AVC-disabled fallback: encode BGRA frames in Rust, send `WireToSurface2`, track acknowledgements and resize, and use the legacy bitmap path only when Progressive is unavailable.
+- Add a continuous image-quality preference that scales the AVC420 bitrate budget while keeping frame-rate selection independent. Adaptive control backs off on measured queue/delay pressure and slowly probes after acknowledged traffic; ACK payload goodput is diagnostic feedback, not a link-capacity ceiling.
+- RDP 客户端恢复输出时使用最近采集帧发送新的 AVC420 IDR；直接读取 IronRDP 的输出抑制状态暂停帧提交，恢复关键帧失败时有界重试。启用 IronRDP 的 NSCodec 协商编码路径，供声明支持的客户端选用；未协商时保留传统位图路径。
+- 将 RDP 桌面像素尺寸与客户端 DPI 提示分开处理；虚拟显示器可选跟随客户端提示、强制标准 1×或强制 HiDPI 2×。比例变化即使像素尺寸不变也会重新配置显示器，未知提示不再按大分辨率猜测 Retina。
+- Keep RDP video available on NVIDIA NVMTL systems when VideoToolbox rejects low-latency rate control: retry standard hardware H.264 while retaining the hardware-required constraint. Encoder startup errors now include the failing stage and OSStatus; logs record the selected encoder and reported hardware state.
+- 按服务端确认的 EGFX 能力启停 AVC420；客户端禁用 AVC 时保留基础位图画面，不启动无效的采集/编码。补充 RDP Client Info、性能标志、桌面尺寸、EGFX 能力及视频确认阶段的脱敏诊断，并防止断线后的过期任务重新启动视频。Windows App 跨平台互操作边界见 `docs/research/windows-app-rdp.md`。
 
 ### MCP
 - The MCP server is packaged as an MCP Bundle (`clawtank-mcp-<version>-arm64.mcpb`) for one-click install in Claude Desktop, and listed in the MCP Registry as `io.github.HMAKT99/clawtank` (`server.json`). `make release` builds both.
@@ -19,6 +58,7 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 - `crypto-bigint` 0.7.6 and `ctutils` 0.4.5 for RUSTSEC-2026-0387 and RUSTSEC-2026-0385 (timing side channels in constant-time code).
 - `x509-cert` 0.3 (certificate fields are now accessor methods; `TlsIdentity::public_key` updated), `sha2` 0.11.1, `base64` 0.23.
 - CI: `actions/checkout` and `actions/upload-artifact` v7.
+- Upgrade the Rust RDP stack to a single pinned IronRDP upstream revision (`475e5d5`): server 0.14, EGFX 0.5 and matching 0.3/0.11/0.12 component releases. Migrate the server, display, input, graphics, audio, clipboard, integration-test and example APIs together; retain older vendored 0.13/0.3 sources as historical reference only.
 
 ## [0.9.0] - 2026-10-22
 

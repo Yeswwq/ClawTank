@@ -5,8 +5,8 @@
 1. Set the version in **both** `core/Cargo.toml` (`[workspace.package] version`) and `app/project.yml` (`CFBundleShortVersionString`, and bump `CFBundleVersion`).
 2. Move the changes under a `## [x.y.z] - YYYY-MM-DD` heading in `CHANGELOG.md`. The release notes are generated from it.
 3. Run `make lint test`, then `make release`. This creates the following in `dist/`:
-   - `ClawTank-x.y.z-arm64.dmg`: the app plus an /Applications link
-   - `clawtank-mcp-x.y.z-arm64.mcpb`: the MCP server as an MCP Bundle (Claude Desktop, MCP Registry)
+   - `ClawTank-x.y.z-<arch>.dmg`: the app plus an /Applications link
+   - `clawtank-mcp-x.y.z-<arch>.mcpb`: the MCP server as an MCP Bundle (Claude Desktop, MCP Registry)
    - `server.json`: the MCP Registry entry for that bundle, with its SHA-256
    - `SHA256SUMS`
    - `RELEASE_NOTES.md`: the changelog section plus install steps
@@ -14,6 +14,9 @@
    The script refuses to run if the versions differ or the changelog section is missing. It verifies the DMG (integrity, layout, deep code signature, bundled `clawtank-mcp`).
 
    Release builds go to `build/release/`, so they never replace your dev-signed `app/build` app and its permissions.
+
+   `make release ARCH=x86_64` 生成 Intel 产物；脚本会检查 App 和内置 MCP
+   二进制的架构一致。默认 `make release` 继续使用当前主机架构。
 4. Create a **draft** GitHub Release and review it before publishing:
    ```sh
    gh release create vX.Y.Z dist/ClawTank-*.dmg dist/clawtank-mcp-*.mcpb dist/SHA256SUMS --draft \

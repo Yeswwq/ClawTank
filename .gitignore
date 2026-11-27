@@ -13,3 +13,25 @@ dist/
 
 # Never build inside vendored crates (would create a second target dir)
 core/vendor/*/target/
+
+# Local diagnostics, client artifacts and exploratory evidence.
+logs/
+scratch/
+probe*.bmp
+*.apk
+*.ips
+runtime.log
+runtime-errors.log
+runtime-session.txt
+
+# Local secrets and signing material.
+.env
+.env.local
+.env.*.local
+*.cer
+*.key
+*.p12
+*.pem
+*.pfx
+*.mobileprovision
+keychain-password

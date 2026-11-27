@@ -28,11 +28,27 @@ enum TailscaleState: Equatable, Sendable {
 
     var summary: String {
         switch self {
-        case .notInstalled: "Tailscale isn't installed"
-        case .notRunning(let reason): "Tailscale is installed but not connected (\(reason))"
+        case .notInstalled: String(localized: "Tailscale isn't installed")
+        case .notRunning(let reason):
+            String(localized: "Tailscale is installed but not connected (\(localizedReason(reason)))")
         case .running(let dns, let ip, let tailnet):
-            "Reachable from anywhere as \(dns ?? ip ?? "?")" + (tailnet.map { " on \($0)" } ?? "")
-        case .addressOnly(let ip): "Tailnet address \(ip) (Tailscale CLI not found)"
+            if let tailnet {
+                String(localized: "Reachable from anywhere as \(dns ?? ip ?? "?") on \(tailnet)")
+            } else {
+                String(localized: "Reachable from anywhere as \(dns ?? ip ?? "?")")
+            }
+        case .addressOnly(let ip): String(localized: "Tailnet address \(ip) (Tailscale CLI not found)")
+        }
+    }
+
+    private func localizedReason(_ reason: String) -> String {
+        switch reason {
+        case "needs login": String(localized: "needs login")
+        case "turned off": String(localized: "turned off")
+        case "starting": String(localized: "starting")
+        case "not responding": String(localized: "not responding")
+        case "unreadable status": String(localized: "unreadable status")
+        default: reason
         }
     }
 }
@@ -49,7 +65,9 @@ enum RemoteAccess {
                        run: (String, [String]) -> Data? = runProcess,
                        interfaceAddresses: () -> [String] = ipv4Addresses) -> TailscaleState {
         if let cli = cliCandidates.first(where: fileExists) {
-            guard let json = run(cli, ["status", "--json"]) else { return .notRunning(reason: "not responding") }
+            guard let json = run(cli, ["status", "--json"]) else {
+                return .notRunning(reason: "not responding")
+            }
             return parseStatus(json)
         }
         if let ip = interfaceAddresses().first(where: isTailnetIPv4) {

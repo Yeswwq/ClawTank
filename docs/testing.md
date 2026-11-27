@@ -2,6 +2,43 @@
 
 Run the relevant section at the end of the phase noted. Record the date, macOS version, client and result.
 
+## 本机实时日志
+
+每次构建、启动、复测与日志清理都使用以下固定规则：先正常退出旧版 ClawTank；
+执行 `make full-run ARCH=x86_64` 运行 lint、Rust/XCTest 和 Release 构建，全部成功后将新 App
+替换到 `/Applications/ClawTank.app` 并启动；本轮
+`runtime.log`、`runtime-errors.log` 和 `runtime-session.txt` 在启动前自动覆盖；
+复现和客户端连接期间完成测试；问题发生后按日志时间、`category` 和
+`processID` 分析。不要同时从 `/Applications`、Xcode Debug 产物或其他副本启动
+同一 Bundle ID 的应用，否则统一日志、TCC 授权和故障现场会混在一起。
+
+Swift 和 Rust 的运行日志通过 macOS 统一日志写入同一 subsystem：
+`dev.clawtank.ClawTank`。Rust tracing 由 `CoreBridge` 转到 `core` category；其他
+Swift category 包括 `server`、`display`、`audio`、`capture`、`encode`、`video`、`bitmap`、
+`media`、`clipboard`、`files` 和 `agent`。连接与 Agent 操作审计另存为
+`~/Library/Application Support/ClawTank/audit.log`，不要把它与统一日志采集文件混淆。
+
+复现问题时使用 `make full-run`：它依次运行 lint、完整测试和当前 x86_64/arm64 Release
+构建，验证通过后替换 `/Applications/ClawTank.app`，然后在启动新构建前清除
+`~/Library/Application Support/ClawTank/` 下的 `runtime.log`、
+`runtime-errors.log` 和 `runtime-session.txt`，然后通过 macOS `log stream`
+以 NDJSON 格式实时采集上述 subsystem，并启动刚安装的 Release App。采集器过滤 `log stream`
+开头的提示文本，只将带 `eventType` 的 JSON 事件写入日志，诊断输出单独写入错误文件。
+`make run` 适合只需构建和部署、无需
+重新执行完整检查的复测。为避免把旧进程的日志
+混入本轮，若检测到已有 ClawTank 进程，脚本会请求应用正常退出；无法在 30 秒内退出时，
+会停止部署并保留现有安装。
+按 Ctrl-C 只会停止日志采集，不会退出应用。
+
+`runtime-session.txt` 记录本轮运行 ID、启动时间、已安装 App 路径、主机架构、进程 ID
+和可执行文件路径；`runtime.log` 是
+本轮统一日志 NDJSON，可直接按时间戳、`category`、`processID` 和消息筛选；
+`runtime-errors.log` 保存采集命令本身的错误输出。每次 `make full-run` 或 `make run` 会覆盖这三个
+采集文件；审计日志和 macOS 统一日志数据库不受影响。
+这覆盖主应用 Swift 日志及经 `CoreBridge` 转发的 Rust 日志。独立 MCP Server 的
+stderr 由启动它的 MCP Host 管理，不属于 macOS 统一日志流。可用 Console.app 按
+subsystem `dev.clawtank.ClawTank` 查看同一日志流。
+
 ## Phase 0
 - [ ] `make spike-vd` on this Mac after granting Screen Recording; the PNG shows the virtual desktop.
 - [ ] `make spike-vd` on the headless Mac mini (no monitor, no dummy plug).
@@ -15,13 +52,13 @@ Get the connection details from the ClawTank menu: **Copy Address**, the usernam
 - [ ] (Optional) the same from Windows `mstsc.exe` or another device on the LAN.
 - [x] (CI, first run 2026-10-21) FreeRDP 3 on Ubuntu authenticated with NLA, was refused with a wrong password, and connected and received the test frame. The final disconnect check failed only because the script killed the `xvfb-run` wrapper instead of FreeRDP; fixed.
 - Automated check against the running app (no GUI client needed):
-  `CLAWTANK_PASSWORD="$(cat ~/Library/Application\ Support/ClawTank/secrets/rdp-password.secret)" core/target/debug/examples/probe 127.0.0.1:3389 "$(whoami)"`
+  `cd core && CLAWTANK_PASSWORD="$(cat ~/Library/Application\ Support/ClawTank/secrets/rdp-password.secret)" cargo run --example probe -- 127.0.0.1:3389 "$(whoami)"`
   Build it first with `cd core && cargo build --example probe`. It connects with TLS + NLA, verifies the test pattern and saves `probe.bmp`.
   - 2026-10-21, macOS 15.6.1, M2: ✅ loopback (1280×800) and LAN 192.168.1.20 (1512×982) verified; wrong password refused by CredSSP.
 
 ## Phase 2 — live video
 Automated against the running app (Screen Recording granted to ClawTank):
-`CLAWTANK_PASSWORD="$(cat ~/Library/Application\ Support/ClawTank/secrets/rdp-password.secret)" core/target/debug/examples/probe 127.0.0.1:3389 "$(whoami)" 1512x982 --egfx 10`
+`cd core && CLAWTANK_PASSWORD="$(cat ~/Library/Application\ Support/ClawTank/secrets/rdp-password.secret)" cargo run --example probe -- 127.0.0.1:3389 "$(whoami)" 1512x982 --egfx 10`
 Set `CLAWTANK_DUMP_H264=path` to save the first access unit, which you can decode to verify.
 
 Results, 2026-10-21, M2 MacBook Air, macOS 15.6.1, loopback, 1512×982 session:
@@ -33,6 +70,20 @@ Results, 2026-10-21, M2 MacBook Air, macOS 15.6.1, loopback, 1512×982 session:
 - [ ] Human: Windows App shows the live desktop, window dragging is smooth, video playback looks right, text is crisp.
 - [ ] Human: "Show Stats Overlay" draws fps/bitrate/encode time on the video.
 - [ ] Not yet measured: end-to-end input→display latency.
+
+2026-11-23，Intel Mac Pro（MacPro7,1）、macOS 26.7.3、RTX 5060/NVMTL 3.0：最新诊断包中的 TCC 预检为 granted，RDP 认证、音频和 EGFX 协商均成功；视频在低延迟 VideoToolbox 会话创建处失败。独立 API 探针确认 NVMTL 对低延迟 specification 返回 `-12902`，标准硬件会话报告 NVIDIA NVENC ID 和硬件加速 true。修复后的新构建尚未完成真实客户端视频复测，不能据 API 探针宣称 RDP 视频验收通过。
+
+Automated reliable UDP path (`cargo test -p clawtank-core --test video`):
+- ✅ 客户端协商 `UDP_FECR` + `SOFT_SYNC_TCP_TO_UDP`，在同一个端口上建立
+  RDPEUDP2 + TLS + RDPEMT 侧带，服务端把 EGFX 迁移到该 tunnel。
+- ✅ AVC420 帧经 UDP 到达客户端并产生图形更新，EGFX ACK 返回 `VideoHub`。
+- ✅ EGFX 迁移后，Display Control resize 仍经 TCP 往返。
+- ✅ 客户端公告 multitransport 但拒绝 UDP 时，AVC420 仍经 TCP 到达。
+- ✅ ACK suspend 会清除旧的 in-flight 计时样本；强制 IDR 之后，早先生成的
+  P-frame 输出会在交付队列中按 reference generation 丢弃。
+- [ ] 人工：Windows App / `mstsc` 和 FreeRDP 在真实局域网中分别测试允许
+  UDP 与防火墙阻断 UDP。记录客户端版本、侧带是否建立、EGFX 是否迁移，以及
+  帧和 ACK 是否连续。
 
 ## Phase 3 — input and cursor
 Automated live test (it takes over the mouse and keyboard for about 15 s; ask first): a centred test window plus

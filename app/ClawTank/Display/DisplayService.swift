@@ -17,9 +17,34 @@ enum DisplayMode: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .automatic: "Automatic (virtual when headless)"
-        case .virtual: "Virtual display (matched to client)"
-        case .physical: "Physical display (scaled)"
+        case .automatic: String(localized: "Automatic (virtual when headless)")
+        case .virtual: String(localized: "Virtual display (matched to client)")
+        case .physical: String(localized: "Physical display (scaled)")
+        }
+    }
+}
+
+enum VirtualDisplayDensity: String, CaseIterable, Identifiable, Sendable {
+    case clientHint, standard, hiDPI
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .clientHint: String(localized: "Follow client DPI hint (best effort)")
+        case .standard: String(localized: "Standard (1x)")
+        case .hiDPI: String(localized: "HiDPI (2x)")
+        }
+    }
+
+    func usesHiDPI(scalePercent: Int?) -> Bool {
+        switch self {
+        case .clientHint:
+            guard let scalePercent, (100...500).contains(scalePercent) else { return false }
+            return scalePercent >= 150
+        case .standard:
+            return false
+        case .hiDPI:
+            return true
         }
     }
 }
@@ -51,16 +76,14 @@ final class DisplayService {
         self.init(provider: CGVirtualDisplayProvider())
     }
 
-    /// Retina when the client says it is scaled ≥150%, or (scale unknown) when the requested
-    /// size is so large it can only be a Retina panel's native resolution.
-    nonisolated static func wantsHiDPI(width: Int, height: Int, scalePercent: Int?) -> Bool {
-        if let scalePercent { return scalePercent >= 150 }
-        return width >= 2400 || height >= 1500
-    }
-
     /// Returns the display to capture for a `width`×`height` session, creating or resizing the
     /// virtual display as needed.
-    func prepare(width: Int, height: Int, scalePercent: Int?, mode: DisplayMode) async -> DisplayTarget? {
+    func prepare(width: Int, height: Int, scalePercent: Int?, mode: DisplayMode,
+                 density: VirtualDisplayDensity = .clientHint) async -> DisplayTarget? {
+        guard VirtualDisplayLimits.supports(width: width, height: height) else {
+            log.error("Rejected unsupported session display size \(width)x\(height)")
+            return nil
+        }
         let physical = physicalDisplays()
         let useVirtual = switch mode {
         case .virtual: true
@@ -68,7 +91,11 @@ final class DisplayService {
         case .automatic: physical.isEmpty
         }
         if useVirtual, provider.isAvailable {
-            let hiDPI = Self.wantsHiDPI(width: width, height: height, scalePercent: scalePercent)
+            let wantsHiDPI = density.usesHiDPI(scalePercent: scalePercent)
+            let hiDPI = wantsHiDPI && width.isMultiple(of: 2) && height.isMultiple(of: 2)
+            if wantsHiDPI && !hiDPI {
+                log.notice("HiDPI unavailable for odd desktop dimensions; using standard density")
+            }
             if let existing = virtualDisplay {
                 if await existing.resize(widthPixels: width, heightPixels: height, hiDPI: hiDPI) {
                     return target(for: existing)

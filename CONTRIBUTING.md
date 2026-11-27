@@ -7,18 +7,38 @@ Thanks for your interest! Bug reports, test reports, documentation fixes and cod
 - **Security issue?** Don't open a public issue. See [SECURITY.md](SECURITY.md).
 - **Bigger change?** Open an issue first, so we can agree on the approach before you invest time.
 
-## Clean-room rule
+## 互操作分析与资料复用边界
 
-ClawTank is built only from:
-- Microsoft's published RDP specifications ([MS-RDPBCGR], [MS-RDPEGFX], …)
-- Apple's public documentation
-- open-source code whose license permits reuse, credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+ClawTank 的实现依据包括微软公开的 RDP 规范（[MS-RDPBCGR]、[MS-RDPEGFX] 等）、
+Apple 公开文档、已在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中注明且
+许可允许复用的开源代码，以及项目所有者提供或授权用于互操作分析的客户端工件。
 
-**Do not** contribute anything derived from decompiling, disassembling or otherwise inspecting closed-source remote-desktop products. Don't copy their code, assets, text, UI or branding. If you've studied such a product's internals, say so in your PR so we can decide together.
+允许为互操作目的检查闭源远程桌面客户端工件，包括协议行为、能力协商、媒体和
+输入处理。记录工件观察结果，并与公开规范要求及线上验证结果区分。不得复制或
+分发专有源代码、资源、界面文案或品牌内容；兼容实现应独立编写，并尽可能通过
+公开规范和跨实现测试验证。
 
 ## Development setup
 
-Requirements: an Apple silicon Mac with macOS 14+, Xcode 16+, Rust stable via [rustup](https://rustup.rs), and `brew install xcodegen swiftlint`.
+要求：macOS 14+ 的 Mac、完整 Xcode 16+、通过官方 [rustup](https://rustup.rs)
+安装并管理的 Rust stable、XcodeGen 和 SwiftLint。Apple Silicon 是上游发布基线；
+Intel/x86_64 支持在 [`docs/macos26-intel-nvidia-rdp.md`](docs/macos26-intel-nvidia-rdp.md)
+中单独跟踪。使用 rustup 安装 Rust，并在当前 shell 启用其工具链：
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+在使用 MacPorts 的主机上，可执行以下命令安装 XcodeGen 和 SwiftLint：
+
+```sh
+sudo port install xcodegen swiftlint
+```
+
+MacPorts 安装这两个工具前需要完整 Xcode；只有 Command Line Tools 时会被
+拒绝。安装完整 Xcode 后，再运行上述命令并确认 `xcodegen`、`swiftlint` 在
+`PATH` 中。
 
 ```sh
 git clone https://github.com/HMAKT99/ClawTank.git && cd ClawTank
@@ -30,12 +50,12 @@ make lint          # clippy -D warnings, rustfmt --check, swiftlint --strict
 
 For Xcode, run `make core project` and open `app/ClawTank.xcodeproj`. The project is generated from `app/project.yml` by XcodeGen, so edit that file, not the `.xcodeproj`.
 
-## Branching and upstream sync
+## 分支与上游同步
 
-Keep `main` aligned with `upstream/main` and do feature work on a focused branch.
-For the Intel/NVIDIA effort, use [`docs/macos26-intel-nvidia-rdp.md`](docs/macos26-intel-nvidia-rdp.md)
-as the scope and acceptance contract. Before publishing a branch, rebase it on
-the current upstream baseline and run the relevant lint and test commands:
+保持 `main` 与 `upstream/main` 对齐，并在聚焦分支上开发功能。Intel/NVIDIA
+工作以 [`docs/macos26-intel-nvidia-rdp.md`](docs/macos26-intel-nvidia-rdp.md)
+作为范围和验收约定。发布分支前，先 rebase 到最新上游基线，再运行相关 lint
+和测试命令：
 
 ```sh
 git fetch upstream
@@ -43,8 +63,8 @@ git rebase upstream/main
 make lint test
 ```
 
-Do not mix generated Xcode projects, build products, signing keys or unrelated
-refactors into a protocol or macOS integration change.
+不要把生成的 Xcode 工程、构建产物、签名密钥或无关重构混入协议或 macOS
+集成改动。
 
 | Target | What it does |
 |---|---|
@@ -65,6 +85,8 @@ Read [docs/architecture.md](docs/architecture.md) first. The key rule: **Rust ne
 - **macOS work** goes in `app/ClawTank/<Area>/`, with XCTest in `app/ClawTankTests/`. Inject fakes for system APIs.
 - **New C ABI functions** go only in `core/clawtank-core/src/ffi.rs`, with a Swift wrapper in `CoreBridge.swift` and tests. Keep the boundary narrow (ADR-002).
 - **Significant or hard-to-reverse choices** get an ADR in [docs/decisions.md](docs/decisions.md).
+- **界面本地化**遵循 [docs/localization.md](docs/localization.md)：使用英文源字符串和
+  Apple String Catalog；为用户可见文案同步维护 `zh-Hans`，不要本地化协议字段或机器数据。
 
 ## Conventions
 

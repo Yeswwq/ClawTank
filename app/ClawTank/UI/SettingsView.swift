@@ -44,9 +44,31 @@ private struct GeneralSettings: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             if let loginError { Text(loginError).foregroundStyle(.red).font(.callout) }
+            Section("Application Language") {
+                LabeledContent("Current language", value: AppLanguage.displayName)
+                Button("Open System Settings…") {
+                    AppLanguage.openSystemSettings()
+                }
+                Text(String(localized: """
+                    Choose ClawTank under System Settings → General → Language & Region → Applications. \
+                    Quit and reopen ClawTank after changing its language.
+                    """))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section("Diagnostics") {
+                Picker("Rust log level", selection: $settings.rustLogLevel) {
+                    ForEach(RustLogLevel.allCases) { Text($0.title).tag($0) }
+                }
+                Text(String(localized: """
+                    The selected level controls Rust log detail. First-frame bitmap metadata also \
+                    requires the controlled diagnostic switch. Screen pixels and credentials are \
+                    never logged.
+                    """))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             Toggle("Keep this Mac awake while someone is connected", isOn: $settings.keepAwake)
             Toggle("Swap Ctrl and ⌘ (Ctrl+C copies)", isOn: $settings.swapControlCommand)
-            Toggle("Show stats overlay on the video", isOn: $settings.showsStatsOverlay)
+            Toggle("Show connection diagnostics overlay on the video", isOn: $settings.showsStatsOverlay)
             Section("Sound and clipboard") {
                 Toggle("Play this Mac's sound on the client", isOn: $settings.audioEnabled)
                 Toggle("Mute this Mac's speakers while connected", isOn: $settings.muteLocalAudio)
@@ -70,13 +92,45 @@ private struct DisplaySettings: View {
             Picker("Display", selection: $settings.displayMode) {
                 ForEach(DisplayMode.allCases) { Text($0.title).tag($0) }
             }
+            Picker("Virtual display density", selection: $settings.virtualDisplayDensity) {
+                ForEach(VirtualDisplayDensity.allCases) { Text($0.title).tag($0) }
+            }
+            Text("Client DPI is a hint. RDP desktop pixel dimensions are not multiplied.")
+                .font(.callout).foregroundStyle(.secondary)
             Picker("Maximum frame rate", selection: $settings.maxFrameRate) {
                 Text("60 fps").tag(60)
                 Text("30 fps").tag(30)
             }
-            Picker("Quality", selection: $settings.quality) {
-                ForEach(QualityPreset.allCases) { Text($0.title).tag($0) }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Image quality")
+                    Spacer()
+                    Text("\(settings.qualityPreference)%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: Binding(
+                    get: { Double(settings.qualityPreference) },
+                    set: { settings.qualityPreference = Int($0.rounded()) }), in: 0...100, step: 1) {
+                    Text("Image quality")
+                } minimumValueLabel: {
+                    Image(systemName: "arrow.down.circle")
+                        .help("Prioritize lower bandwidth")
+                } maximumValueLabel: {
+                    Image(systemName: "sparkles")
+                        .help("Prioritize image quality")
+                }
+                HStack {
+                    Text("Low bandwidth")
+                    Spacer()
+                    Text("High quality")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
+            Text("The preference adjusts the AVC420 bitrate budget. " +
+                 "Codec selection still follows the client's negotiated capabilities.")
+                .font(.callout).foregroundStyle(.secondary)
             Text("Changes apply from the next connection or window resize.")
                 .font(.callout).foregroundStyle(.secondary)
         }
@@ -96,7 +150,7 @@ private struct SecuritySettings: View {
     var body: some View {
         Form {
             Section("Password") {
-                PasswordChanger(server: server, finishTitle: "Change Password") {}
+                PasswordChanger(server: server, finishTitle: String(localized: "Reset Password")) {}
             }
             Section("Network") {
                 Toggle("Only allow connections from my local network", isOn: Binding(
@@ -122,14 +176,16 @@ private struct SecuritySettings: View {
             Button("Allow", role: .destructive) { lanOnly = false }
             Button("Keep LAN-only", role: .cancel) {}
         } message: {
-            Text("Anyone who can reach this Mac's port could try to log in. Only do this behind a VPN, " +
-                 "with a strong password, and ideally with an allowlist. Failed logins are rate-limited.")
+            Text(String(localized: """
+                Anyone who can reach this Mac's port could try to log in. Only do this behind a VPN, \
+                with a strong password, and ideally with an allowlist. Failed logins are rate-limited.
+                """))
         }
     }
 
     private func apply() {
         guard let number = Int(port), (1...65535).contains(number) else {
-            error = "Port must be a number from 1 to 65535."
+            error = String(localized: "Port must be a number from 1 to 65535.")
             return
         }
         error = nil

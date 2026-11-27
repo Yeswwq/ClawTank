@@ -1,0 +1,3584 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%arg fps · %@ Mbit/s · encoding %@ ms": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$arg fps · %2$@ Mbit/s · encoding %3$@ ms"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$arg 帧/秒 · %2$@ Mbit/s · 编码 %3$@ ms"
+          }
+        }
+      }
+    },
+    "1. Install Tailscale on this Mac and sign in.\n2. Install it on the device you'll connect from and sign in with the same account.\n3. Come back here: ClawTank shows the name to use.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 在此 Mac 上安装 Tailscale 并登录。\n2. 在连接所用的设备上安装 Tailscale，并使用同一账户登录。\n3. 返回此处：ClawTank 会显示要使用的名称。"
+          }
+        }
+      }
+    },
+    "1. Install Windows App from the App Store.\n2. Tap + → Add PC. PC name: %arg. User account: %arg and your ClawTank password.\n3. Tap the PC to connect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "1. Install Windows App from the App Store.\n2. Tap + → Add PC. PC name: %1$arg. User account: %2$arg and your ClawTank password.\n3. Tap the PC to connect."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 从 App Store 安装 Windows App。\n2. 点按 + →“添加电脑”。电脑名称：%1$arg。用户帐户：%2$arg，密码使用 ClawTank 密码。\n3. 点按该电脑以连接。"
+          }
+        }
+      }
+    },
+    "1. Install Windows App from the Mac App Store.\n2. Click + → Add PC. PC name: %arg. User account: add %arg and your ClawTank password.\n3. Double-click the PC. Tip: in the PC's settings, turn on \"Optimize for Retina displays\" for crisp text.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "1. Install Windows App from the Mac App Store.\n2. Click + → Add PC. PC name: %1$arg. User account: add %2$arg and your ClawTank password.\n3. Double-click the PC. Tip: in the PC's settings, turn on \"Optimize for Retina displays\" for crisp text."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 从 Mac App Store 安装 Windows App。\n2. 点按 + →“添加电脑”。电脑名称：%1$arg。用户帐户：添加 %2$arg，并使用 ClawTank 密码。\n3. 连按该电脑。提示：在电脑设置中开启“针对 Retina 显示器进行优化”，以获得清晰文字。"
+          }
+        }
+      }
+    },
+    "1. Open Remote Desktop Connection (press Win+R, type mstsc, Enter).\n2. Computer: %arg. Click Show Options; User name: %arg.\n3. Connect, enter your ClawTank password, and accept the certificate after checking its fingerprint matches the one shown in ClawTank.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "1. Open Remote Desktop Connection (press Win+R, type mstsc, Enter).\n2. Computer: %1$arg. Click Show Options; User name: %2$arg.\n3. Connect, enter your ClawTank password, and accept the certificate after checking its fingerprint matches the one shown in ClawTank."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. 打开“远程桌面连接”（按 Win+R，输入 mstsc，然后按 Enter）。\n2. 电脑：%1$arg。点按“显示选项”；用户名：%2$arg。\n3. 连接并输入 ClawTank 密码；确认指纹与 ClawTank 显示的一致后，再接受证书。"
+          }
+        }
+      }
+    },
+    "30 fps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 帧/秒"
+          }
+        }
+      }
+    },
+    "60 fps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60 帧/秒"
+          }
+        }
+      }
+    },
+    "Address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址"
+          }
+        }
+      }
+    },
+    "Agent %arg is in control. Stop button.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理 %1$arg 正在控制。停止按钮。"
+          }
+        }
+      }
+    },
+    "Agent action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理操作"
+          }
+        }
+      }
+    },
+    "Agent name, e.g. Claude Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理名称，例如 Claude Code"
+          }
+        }
+      }
+    },
+    "Agent refused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理请求被拒绝"
+          }
+        }
+      }
+    },
+    "Agent “%arg” is in control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理“%1$arg”正在控制"
+          }
+        }
+      }
+    },
+    "Agent “%arg” is in control: %arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Agent “%1$arg” is in control: %2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理“%1$arg”正在控制：%2$arg"
+          }
+        }
+      }
+    },
+    "Agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理"
+          }
+        }
+      }
+    },
+    "Agents on this Mac can take screenshots, move the mouse, type and open apps through a local API\n(127.0.0.1 only, never the network). Each agent needs its own token. Every action is written to the\nconnection log, a badge shows while an agent is in control, and a person using the Mac over RDP\nalways takes priority.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 上的 Agent 可通过本地 API 截屏、移动鼠标、输入文字和打开 App（仅限 127.0.0.1，不通过网络）。每个 Agent 都需要独立令牌。每项操作都会写入连接日志；Agent 控制期间会显示标记；通过 RDP 使用 Mac 的用户始终拥有优先权。"
+          }
+        }
+      }
+    },
+    "Allow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许"
+          }
+        }
+      }
+    },
+    "Allow AI agents to control this Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 AI 代理控制此 Mac"
+          }
+        }
+      }
+    },
+    "Allow Accessibility": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许辅助功能"
+          }
+        }
+      }
+    },
+    "Allow Screen Recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许屏幕录制"
+          }
+        }
+      }
+    },
+    "Allow connections from outside your network?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许来自网络外部的连接？"
+          }
+        }
+      }
+    },
+    "Allowlist (optional): IPs or CIDRs, comma-separated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许列表（可选）：IP 或 CIDR，用逗号分隔"
+          }
+        }
+      }
+    },
+    "Anyone who can reach this Mac's port could try to log in. Only do this behind a VPN, with a strong password, and ideally with an allowlist. Failed logins are rate-limited.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任何能访问此 Mac 端口的人都可能尝试登录。请仅在 VPN 后、使用强密码并最好配置允许列表时启用。失败登录会受到速率限制。"
+          }
+        }
+      }
+    },
+    "Applies from the next connection.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次连接时生效。"
+          }
+        }
+      }
+    },
+    "Apply Network Changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用网络更改"
+          }
+        }
+      }
+    },
+    "Applying restarts the server and disconnects anyone connected.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用后会重启服务器并断开所有已连接的客户端。"
+          }
+        }
+      }
+    },
+    "Approve ClawTank in System Settings → General → Login Items.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”→“通用”→“登录项”中批准 ClawTank。"
+          }
+        }
+      }
+    },
+    "Application Language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用语言"
+          }
+        }
+      }
+    },
+    "Authentication failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "认证失败"
+          }
+        }
+      }
+    },
+    "Automatic (virtual when headless)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动（无头时使用虚拟显示器）"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回"
+          }
+        }
+      }
+    },
+    "Balanced": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "均衡"
+          }
+        }
+      }
+    },
+    "Blocked %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止 %1$arg"
+          }
+        }
+      }
+    },
+    "Blocked %arg: locked out after failed logins": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止 %1$arg：登录失败次数过多，已锁定"
+          }
+        }
+      }
+    },
+    "Blocked %arg: not on the allowlist": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止 %1$arg：不在允许列表中"
+          }
+        }
+      }
+    },
+    "Blocked %arg: not on your local network": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止 %1$arg：不在本地网络中"
+          }
+        }
+      }
+    },
+    "Certificate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "证书"
+          }
+        }
+      }
+    },
+    "Changes apply from the next connection or window resize.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次连接或调整窗口大小时生效。"
+          }
+        }
+      }
+    },
+    "Open System Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置…"
+          }
+        }
+      }
+    },
+    "Check Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次检查"
+          }
+        }
+      }
+    },
+    "Choose a Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择密码"
+          }
+        }
+      }
+    },
+    "ClawTank %arg · core %arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "ClawTank %1$arg · core %2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank %1$arg · 核心 %2$arg"
+          }
+        }
+      }
+    },
+    "ClawTank Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank 设置"
+          }
+        }
+      }
+    },
+    "ClawTank lets you reach this Mac from any standard Remote Desktop client — Windows, Mac, iPad, iPhone or Linux — with a crisp, fast, full desktop. It works only on your local network unless you change that, and nothing goes through any cloud.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank 可让你通过 Windows、Mac、iPad、iPhone 或 Linux 上的标准远程桌面客户端访问这台 Mac，获得清晰、流畅的完整桌面。除非你更改设置，否则它仅在本地网络上工作，不经过任何云服务。"
+          }
+        }
+      }
+    },
+    "ClawTank needs to see the screen to send it to your remote client. Click the button, turn on ClawTank in the list, and come back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank 需要查看屏幕，才能将画面发送到远程客户端。点按按钮，在列表中启用 ClawTank，然后返回此处。"
+          }
+        }
+      }
+    },
+    "ClawTank only accepts connections from your local network and from Tailscale, a private encrypted\nnetwork between your own devices. Nothing is exposed to the internet, and you never need to\nforward a port on your router.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank 仅接受来自本地网络和 Tailscale 的连接。Tailscale 是你个人设备之间的加密专用网络。互联网无法访问此 Mac，你也无需在路由器上转发端口。"
+          }
+        }
+      }
+    },
+    "ClawTank: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank：%1$arg"
+          }
+        }
+      }
+    },
+    "ClawTank: agent %arg is in control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ClawTank：代理 %1$arg 正在控制"
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "Connect an MCP agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 MCP 代理"
+          }
+        }
+      }
+    },
+    "Connect from": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接来源"
+          }
+        }
+      }
+    },
+    "Connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接"
+          }
+        }
+      }
+    },
+    "Connected: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接：%1$arg"
+          }
+        }
+      }
+    },
+    "Connection Log": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接日志"
+          }
+        }
+      }
+    },
+    "Connection Log…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接日志…"
+          }
+        }
+      }
+    },
+    "Connection from %arg failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 %1$arg 的连接失败"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        }
+      }
+    },
+    "Copy %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制%1$arg"
+          }
+        }
+      }
+    },
+    "Copy Address (%arg)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制地址（%1$arg）"
+          }
+        }
+      }
+    },
+    "Copy Command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制命令"
+          }
+        }
+      }
+    },
+    "Copy Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制密码"
+          }
+        }
+      }
+    },
+    "Copy Remote Address (%arg)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制远程地址（%1$arg）"
+          }
+        }
+      }
+    },
+    "Copy this token now; it won't be shown again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请立即复制此令牌；之后不会再次显示。"
+          }
+        }
+      }
+    },
+    "Couldn't read the wake setting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取网络唤醒设置。"
+          }
+        }
+      }
+    },
+    "Couldn't save the password: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存密码：%1$arg"
+          }
+        }
+      }
+    },
+    "Couldn't start: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法启动：%1$arg"
+          }
+        }
+      }
+    },
+    "Create Token": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建令牌"
+          }
+        }
+      }
+    },
+    "Created %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建于 %1$arg"
+          }
+        }
+      }
+    },
+    "Created %arg · last used %arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Created %1$arg · last used %2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建时间：%1$arg · 上次使用：%2$arg"
+          }
+        }
+      }
+    },
+    "Current language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前语言"
+          }
+        }
+      }
+    },
+    "Detail": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详情"
+          }
+        }
+      }
+    },
+    "Disconnect %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "断开 %1$arg"
+          }
+        }
+      }
+    },
+    "Disconnected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已断开"
+          }
+        }
+      }
+    },
+    "Display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示器"
+          }
+        }
+      }
+    },
+    "Display & Quality": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示与画质"
+          }
+        }
+      }
+    },
+    "Client DPI is a hint. RDP desktop pixel dimensions are not multiplied.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端 DPI 仅作提示；不会按比例放大 RDP 桌面像素尺寸。"
+          }
+        }
+      }
+    },
+    "Don't include your username.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请勿包含用户名。"
+          }
+        }
+      }
+    },
+    "Include at least one uppercase letter.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少包含一个大写字母。"
+          }
+        }
+      }
+    },
+    "Include at least one lowercase letter.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少包含一个小写字母。"
+          }
+        }
+      }
+    },
+    "Include at least one special character.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少包含一个特殊字符。"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "Error: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "错误：%1$arg"
+          }
+        }
+      }
+    },
+    "Event": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事件"
+          }
+        }
+      }
+    },
+    "Export Diagnostics…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出诊断信息…"
+          }
+        }
+      }
+    },
+    "Failed login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录失败"
+          }
+        }
+      }
+    },
+    "Failed login from %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 %1$arg 的登录失败"
+          }
+        }
+      }
+    },
+    "For Claude Code (other MCP clients: run the same binary over stdio with the token in\nCLAWTANK_AGENT_TOKEN):": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用于 Claude Code（其他 MCP 客户端：通过 stdio 运行同一二进制文件，并将令牌放入环境变量 CLAWTANK_AGENT_TOKEN）："
+          }
+        }
+      }
+    },
+    "From %arg since %arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "From %1$arg since %2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源：%1$arg，连接时间：%2$arg"
+          }
+        }
+      }
+    },
+    "From anywhere": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从任何位置"
+          }
+        }
+      }
+    },
+    "General": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        }
+      }
+    },
+    "Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断"
+          }
+        }
+      }
+    },
+    "Rust log level": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rust 日志级别"
+          }
+        }
+      }
+    },
+    "The selected level controls Rust log detail. First-frame bitmap metadata also requires the controlled diagnostic switch. Screen pixels and credentials are never logged.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选级别用于控制 Rust 日志详细程度。首帧位图元数据还需要开启受控诊断开关。不会记录屏幕像素或凭证。"
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准"
+          }
+        }
+      }
+    },
+    "Errors only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅错误"
+          }
+        }
+      }
+    },
+    "Warnings and errors": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "警告和错误"
+          }
+        }
+      }
+    },
+    "Information": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息"
+          }
+        }
+      }
+    },
+    "Debug": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调试"
+          }
+        }
+      }
+    },
+    "Trace": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟踪"
+          }
+        }
+      }
+    },
+    "The standard level includes core and RDP debug events. Debug logs include first-frame bitmap tile metadata only; screen pixels and credentials are never logged.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准级别包含核心和 RDP 调试事件。调试日志仅包含首帧位图 tile 元数据，不会记录屏幕像素或凭证。"
+          }
+        }
+      }
+    },
+    "The preference adjusts the AVC420 bitrate budget. Codec selection still follows the client's negotiated capabilities.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此偏好会调整 AVC420 码率预算。编码器选择仍遵循客户端协商得到的能力。"
+          }
+        }
+      }
+    },
+    "Get Started": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始使用"
+          }
+        }
+      }
+    },
+    "Get Tailscale for Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取 Mac 版 Tailscale"
+          }
+        }
+      }
+    },
+    "Grant Accessibility to ClawTank in System Settings to enable keyboard and mouse": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系统设置中授予 ClawTank“辅助功能”权限，以启用键盘和鼠标"
+          }
+        }
+      }
+    },
+    "Grant Screen Recording to ClawTank in System Settings, then reconnect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系统设置中授予 ClawTank“屏幕录制”权限，然后重新连接"
+          }
+        }
+      }
+    },
+    "Handshake failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "握手失败"
+          }
+        }
+      }
+    },
+    "Granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已允许"
+          }
+        }
+      }
+    },
+    "High quality": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高画质"
+          }
+        }
+      }
+    },
+    "High quality (more bandwidth)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高画质（需要更多带宽）"
+          }
+        }
+      }
+    },
+    "How it works": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作原理"
+          }
+        }
+      }
+    },
+    "Image quality": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画质"
+          }
+        }
+      }
+    },
+    "If macOS asks to quit and reopen ClawTank, choose Quit & Reopen; setup continues.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果 macOS 要求退出并重新打开 ClawTank，请选择“退出并重新打开”；设置会继续。"
+          }
+        }
+      }
+    },
+    "Keep LAN-only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持仅局域网"
+          }
+        }
+      }
+    },
+    "Keep the generated password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留生成的密码"
+          }
+        }
+      }
+    },
+    "Keep this Mac awake while someone is connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有人连接时保持此 Mac 唤醒"
+          }
+        }
+      }
+    },
+    "Linux": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linux"
+          }
+        }
+      }
+    },
+    "Listening on 127.0.0.1:%arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在监听 127.0.0.1：%1$arg"
+          }
+        }
+      }
+    },
+    "Locked out": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已锁定"
+          }
+        }
+      }
+    },
+    "Locked out %arg for %arg min after repeated failed logins": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Locked out %1$arg for %2$arg min after repeated failed logins"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多次登录失败后，已锁定 %1$arg，持续 %2$arg 分钟"
+          }
+        }
+      }
+    },
+    "Low bandwidth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低带宽"
+          }
+        }
+      }
+    },
+    "Mac": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac"
+          }
+        }
+      }
+    },
+    "Maximum frame rate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大帧率"
+          }
+        }
+      }
+    },
+    "Mute this Mac's speakers while connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接时静音此 Mac 的扬声器"
+          }
+        }
+      }
+    },
+    "Network": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络"
+          }
+        }
+      }
+    },
+    "New password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密码"
+          }
+        }
+      }
+    },
+    "No display available to share": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可共享的显示器"
+          }
+        }
+      }
+    },
+    "No tokens yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚无令牌。"
+          }
+        }
+      }
+    },
+    "Not enough disk space to receive %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘空间不足，无法接收 %1$arg"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "On the other device: connect Tailscale, then add a PC in Windows App or mstsc with the name above,\nyour username %arg and your ClawTank password.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在另一台设备上：连接到 Tailscale，然后在 Windows App 或 mstsc 中添加电脑，名称使用上方显示的名称，用户名为 %1$arg，密码使用 ClawTank 密码。"
+          }
+        }
+      }
+    },
+    "Only allow connections from my local network": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅允许来自本地网络的连接"
+          }
+        }
+      }
+    },
+    "Open Accessibility Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开辅助功能设置"
+          }
+        }
+      }
+    },
+    "Open Energy Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“能源”设置"
+          }
+        }
+      }
+    },
+    "Open Screen Recording Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开屏幕录制设置"
+          }
+        }
+      }
+    },
+    "Open Tailscale": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Tailscale"
+          }
+        }
+      }
+    },
+    "Open Tailscale and connect (sign in if asked). ClawTank checks again every 30 seconds.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Tailscale 并连接（如有提示请登录）。ClawTank 每 30 秒再次检查。"
+          }
+        }
+      }
+    },
+    "PC name for remote clients": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程客户端使用的 PC 名称"
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        }
+      }
+    },
+    "Physical display %arg×%arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Physical display %1$arg×%2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "物理显示器 %1$arg×%2$arg"
+          }
+        }
+      }
+    },
+    "Physical display (scaled)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "物理显示器（缩放）"
+          }
+        }
+      }
+    },
+    "Follow client DPI hint (best effort)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尽量遵循客户端 DPI 提示"
+          }
+        }
+      }
+    },
+    "Standard (1x)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准（1×）"
+          }
+        }
+      }
+    },
+    "HiDPI (2x)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高分辨率（2×）"
+          }
+        }
+      }
+    },
+    "Play this Mac's sound on the client": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在客户端播放此 Mac 的声音"
+          }
+        }
+      }
+    },
+    "Port": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口"
+          }
+        }
+      }
+    },
+    "Port must be a number from 1 to 65535.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口必须是 1 到 65535 之间的数字。"
+          }
+        }
+      }
+    },
+    "Prioritize image quality": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "优先保证画质"
+          }
+        }
+      }
+    },
+    "Prioritize lower bandwidth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "优先节省带宽"
+          }
+        }
+      }
+    },
+    "Quality": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画质"
+          }
+        }
+      }
+    },
+    "Quit ClawTank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 ClawTank"
+          }
+        }
+      }
+    },
+    "Reachable from anywhere as %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可从任何位置通过 %1$arg 访问"
+          }
+        }
+      }
+    },
+    "Ready — connect to %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就绪——连接到 %1$arg"
+          }
+        }
+      }
+    },
+    "Receiving files: %arg%% of %arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Receiving files: %1$arg%% of %2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在接收文件：%1$arg%%（共 %2$arg）"
+          }
+        }
+      }
+    },
+    "Refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
+    "Refused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝"
+          }
+        }
+      }
+    },
+    "Remote Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程访问"
+          }
+        }
+      }
+    },
+    "Remote access status: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程访问状态：%1$arg"
+          }
+        }
+      }
+    },
+    "Repeat password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重复密码"
+          }
+        }
+      }
+    },
+    "Reset Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置密码"
+          }
+        }
+      }
+    },
+    "Reveal in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "Revoke": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销"
+          }
+        }
+      }
+    },
+    "Save Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存密码"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存"
+          }
+        }
+      }
+    },
+    "Security": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安全"
+          }
+        }
+      }
+    },
+    "Set Up ClawTank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置 ClawTank"
+          }
+        }
+      }
+    },
+    "Set Up Remote Access…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置远程访问…"
+          }
+        }
+      }
+    },
+    "Settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置…"
+          }
+        }
+      }
+    },
+    "Setup Guide…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置指南…"
+          }
+        }
+      }
+    },
+    "Setup progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置进度"
+          }
+        }
+      }
+    },
+    "Setup takes about a minute: two macOS permissions and a password.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置大约需要一分钟：授予两项 macOS 权限并设置密码。"
+          }
+        }
+      }
+    },
+    "Share the clipboard (text, rich text, HTML, images)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享剪贴板（文本、富文本、HTML、图像）"
+          }
+        }
+      }
+    },
+    "Sharing is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享已关闭"
+          }
+        }
+      }
+    },
+    "Show connection diagnostics overlay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示连接诊断叠加层"
+          }
+        }
+      }
+    },
+    "Show connection diagnostics overlay on the video": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在视频上显示连接诊断叠加层"
+          }
+        }
+      }
+    },
+    "Show password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示密码"
+          }
+        }
+      }
+    },
+    "Sound and clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音与剪贴板"
+          }
+        }
+      }
+    },
+    "Start ClawTank at login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时启动 ClawTank"
+          }
+        }
+      }
+    },
+    "Start Sharing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始共享"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        }
+      }
+    },
+    "Stop Agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止代理"
+          }
+        }
+      }
+    },
+    "Stop Sharing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止共享"
+          }
+        }
+      }
+    },
+    "Swap Ctrl and ⌘ (Ctrl+C copies)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "交换 Ctrl 和 ⌘（Ctrl+C 复制）"
+          }
+        }
+      }
+    },
+    "Tailnet address %arg (Tailscale CLI not found)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailnet 地址 %1$arg（未找到 Tailscale CLI）"
+          }
+        }
+      }
+    },
+    "Tailscale is installed but not connected (%arg)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale 已安装但未连接（%1$arg）"
+          }
+        }
+      }
+    },
+    "Tailscale isn't installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装 Tailscale"
+          }
+        }
+      }
+    },
+    "That password is too common.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该密码过于常见。"
+          }
+        }
+      }
+    },
+    "The passwords don't match.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两次输入的密码不一致。"
+          }
+        }
+      }
+    },
+    "Use at least 8 characters, including uppercase, lowercase, and a special character.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少使用 8 个字符，并包含大写字母、小写字母和特殊字符。"
+          }
+        }
+      }
+    },
+    "This Mac is locked: remote clients see only the wallpaper until it's unlocked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 已锁定：解锁前，远程客户端只能看到墙纸。"
+          }
+        }
+      }
+    },
+    "This Mac is on Tailscale. On the other device, install Tailscale, sign in to the same account, then use %arg as the PC name (same username and password). Nothing is opened to the internet: the connection travels inside Tailscale's encrypted network.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 已连接到 Tailscale。在另一台设备上安装 Tailscale，登录同一帐户，然后使用 %1$arg 作为电脑名称（用户名和密码相同）。连接通过 Tailscale 加密网络传输，不会向互联网开放任何服务。"
+          }
+        }
+      }
+    },
+    "Time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间"
+          }
+        }
+      }
+    },
+    "To connect from outside your home or office, install Tailscale (free for personal use) on this Mac and on the device you connect from, and sign in to the same account on both. Then use this Mac's Tailscale name as the PC name. See Settings → Remote Access. Don't forward port 3389 on your router.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若要从家中或办公室以外连接，请在此 Mac 和用于连接的设备上安装 Tailscale（个人使用免费），并在两台设备上登录同一帐户。然后使用此 Mac 的 Tailscale 名称作为电脑名称。请参阅“设置”→“远程访问”。不要在路由器上转发 3389 端口。"
+          }
+        }
+      }
+    },
+    "To reach this Mac while it sleeps, turn on System Settings → Energy (or Battery → Options) → Wake for\nnetwork access. On a headless Mac mini, also set it to start up after a power failure. ClawTank keeps\nthe Mac awake during a session.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若要在此 Mac 睡眠时仍能访问，请开启“系统设置”→“能源”（或“电池”→“选项”）→“唤醒以供网络访问”。对于无头 Mac mini，还应设置为断电后自动启动。ClawTank 会在会话期间阻止 Mac 睡眠。"
+          }
+        }
+      }
+    },
+    "To type and click for you, ClawTank needs Accessibility. Turn on ClawTank in the list.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要代你输入和点击，ClawTank 需要“辅助功能”权限。请在列表中打开 ClawTank。"
+          }
+        }
+      }
+    },
+    "Tokens": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "令牌"
+          }
+        }
+      }
+    },
+    "Use at least %arg characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少使用 %1$arg 个字符。"
+          }
+        }
+      }
+    },
+    "Use more than a few different characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请使用多种不同字符。"
+          }
+        }
+      }
+    },
+    "User": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户"
+          }
+        }
+      }
+    },
+    "Username": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户名"
+          }
+        }
+      }
+    },
+    "Using FreeRDP 3:\nxfreerdp3 /v:%arg /u:%arg /dynamic-resolution /gfx:avc420\nOr add an RDP connection in Remmina with the same address and username.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Using FreeRDP 3:\nxfreerdp3 /v:%1$arg /u:%2$arg /dynamic-resolution /gfx:avc420\nOr add an RDP connection in Remmina with the same address and username."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 FreeRDP 3：\nxfreerdp3 /v:%1$arg /u:%2$arg /dynamic-resolution /gfx:avc420\n或者在 Remmina 中添加 RDP 连接，并使用相同地址和用户名。"
+          }
+        }
+      }
+    },
+    "Video failed: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频处理失败：%1$arg"
+          }
+        }
+      }
+    },
+    "Virtual display %arg×%arg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Virtual display %1$arg×%2$arg"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虚拟显示器 %1$arg×%2$arg"
+          }
+        }
+      }
+    },
+    "Virtual display (matched to client)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虚拟显示器（匹配客户端）"
+          }
+        }
+      }
+    },
+    "Virtual display density": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虚拟显示器像素密度"
+          }
+        }
+      }
+    },
+    "Waiting…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中…"
+          }
+        }
+      }
+    },
+    "Wake for network access is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络访问唤醒已关闭"
+          }
+        }
+      }
+    },
+    "Wake for network access is on": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络访问唤醒已开启"
+          }
+        }
+      }
+    },
+    "Waking this Mac remotely": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程唤醒此 Mac"
+          }
+        }
+      }
+    },
+    "Welcome to ClawTank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎使用 ClawTank"
+          }
+        }
+      }
+    },
+    "Windows": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows"
+          }
+        }
+      }
+    },
+    "You're Ready": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已准备就绪"
+          }
+        }
+      }
+    },
+    "Your Remote Desktop client will ask for this, with the username **%arg**. It's separate from your Mac's login password.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程桌面客户端会要求输入此密码，用户名为 **%1$arg**。该密码与 Mac 登录密码不同。"
+          }
+        }
+      }
+    },
+    "iPad / iPhone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPad / iPhone"
+          }
+        }
+      }
+    },
+    "needs login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要登录"
+          }
+        }
+      }
+    },
+    "not responding": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无响应"
+          }
+        }
+      }
+    },
+    "starting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在启动"
+          }
+        }
+      }
+    },
+    "turned off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已关闭"
+          }
+        }
+      }
+    },
+    "unreadable status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取状态"
+          }
+        }
+      }
+    },
+    "ACK delay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ACK 延迟"
+          }
+        }
+      }
+    },
+    "Payload goodput": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有效载荷吞吐"
+          }
+        }
+      }
+    },
+    "Target bitrate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标码率"
+          }
+        }
+      }
+    },
+    "pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待定"
+          }
+        }
+      }
+    },
+    "Congested": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拥塞"
+          }
+        }
+      }
+    },
+    "Received ^[%arg item](inflect: true) into Downloads/ClawTank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已接收^[%arg 个项目](inflect: true)到“下载/ClawTank”"
+          }
+        }
+      }
+    },
+    "Skipped: %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已跳过：%1$arg"
+          }
+        }
+      }
+    },
+    "^[%arg entry](inflect: true)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "^[%arg 条记录](inflect: true)"
+          }
+        }
+      }
+    },
+    "Client closed the connection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端已关闭连接"
+          }
+        }
+      }
+    },
+    "Local network only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅限本地网络"
+          }
+        }
+      }
+    },
+    "Not on the allowlist": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在允许列表中"
+          }
+        }
+      }
+    },
+    "Reachable from anywhere as %arg on %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可从任何位置访问：%1$arg（%2$arg）"
+          }
+        }
+      }
+    },
+    "TLS handshake failed (client may have rejected the certificate)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TLS 握手失败（客户端可能拒绝了证书）"
+          }
+        }
+      }
+    },
+    "Wrong username or password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户名或密码错误"
+          }
+        }
+      }
+    },
+    "Wrong username or password from %arg": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 %1$arg 的用户名或密码错误"
+          }
+        }
+      }
+    },
+    "English": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英语"
+          }
+        }
+      }
+    },
+    "Simplified Chinese": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简体中文"
+          }
+        }
+      }
+    },
+    "System language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统语言"
+          }
+        }
+      }
+    },
+    "Choose ClawTank under System Settings → General → Language & Region → Applications. Quit and reopen ClawTank after changing its language.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“系统设置 → 通用 → 语言与地区 → 应用”中选择 ClawTank。更改应用语言后，请退出并重新打开 ClawTank。"
+          }
+        }
+      }
+    },
+    "Client feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端反馈"
+          }
+        }
+      }
+    },
+    "Network path": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络路径"
+          }
+        }
+      }
+    },
+    "Capability flags": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端能力标志"
+          }
+        }
+      }
+    },
+    "RTT not measured": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未测量 RTT"
+          }
+        }
+      }
+    },
+    "baseline pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基线待测量"
+          }
+        }
+      }
+    },
+    "bandwidth not measured": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未测量带宽"
+          }
+        }
+      }
+    },
+    "Connected (authentication and RDP session established)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接（认证和 RDP 会话已建立）"
+          }
+        }
+      }
+    },
+    "Connection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "EGFX": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EGFX"
+          }
+        }
+      }
+    },
+    "Legacy bitmap path": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "传统位图路径"
+          }
+        }
+      }
+    },
+    "Live video": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时画面"
+          }
+        }
+      }
+    },
+    "Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
+          }
+        }
+      }
+    },
+    "Skipped: \\(skipped)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过：%lld"
+          }
+        }
+      }
+    },
+    "Test bitmap — waiting for a real video frame": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测试位图 — 等待真实视频帧"
+          }
+        }
+      }
+    },
+    "Transport": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "传输"
+          }
+        }
+      }
+    },
+    "Waiting for client": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待客户端"
+          }
+        }
+      }
+    },
+    "accepted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已接受"
+          }
+        }
+      }
+    },
+    "declined": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝"
+          }
+        }
+      }
+    },
+    "capability": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "能力"
+          }
+        }
+      }
+    },
+    "device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备缩放"
+          }
+        }
+      }
+    },
+    "monitors": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示器"
+          }
+        }
+      }
+    },
+    "negotiating": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "协商中"
+          }
+        }
+      }
+    },
+    "none advertised": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未声明"
+          }
+        }
+      }
+    },
+    "not advertised": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未声明"
+          }
+        }
+      }
+    },
+    "not offered": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未提供"
+          }
+        }
+      }
+    },
+    "not open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未打开"
+          }
+        }
+      }
+    },
+    "open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打开"
+          }
+        }
+      }
+    },
+    "scale": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩放"
+          }
+        }
+      }
+    },
+    "selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择"
+          }
+        }
+      }
+    },
+    "supported": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持"
+          }
+        }
+      }
+    },
+    "surface flags": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surface 标志"
+          }
+        }
+      }
+    },
+    "unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
+          }
+        }
+      }
+    },
+    "\\($0) ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms"
+          }
+        }
+      }
+    },
+    "\\(ackDelayMs, format: .number.precision(.fractionLength(0))) ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms"
+          }
+        }
+      }
+    },
+    "\\(goodput, format: .number.precision(.fractionLength(1))) Mbit/s": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Mbit/s"
+          }
+        }
+      }
+    },
+    "Client formats": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端格式"
+          }
+        }
+      }
+    },
+    "Client self-reported": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端自报信息"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Client self-reported"
+          }
+        }
+      }
+    },
+    "Local capture/input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机采集/输入权限"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Local capture/input"
+          }
+        }
+      }
+    },
+    "screen capture granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制已授权"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "screen capture granted"
+          }
+        }
+      }
+    },
+    "screen capture denied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制未授权"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "screen capture denied"
+          }
+        }
+      }
+    },
+    "input granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入已授权"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "input granted"
+          }
+        }
+      }
+    },
+    "input denied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入未授权"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "input denied"
+          }
+        }
+      }
+    },
+    "Frame ACK suspended by client": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端已暂停 Frame ACK"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Frame ACK suspended by client"
+          }
+        }
+      }
+    },
+    "Frame ACK not received": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未收到 Frame ACK"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Frame ACK not received"
+          }
+        }
+      }
+    },
+    "Frame ACK pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frame ACK 待定"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Frame ACK pending"
+          }
+        }
+      }
+    },
+    "Decoded frame count pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已解码帧数待定"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Decoded frame count pending"
+          }
+        }
+      }
+    },
+    "QoE not reported (optional)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未上报 QoE（可选）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "QoE not reported (optional)"
+          }
+        }
+      }
+    },
+    "QoE timing unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QoE 耗时不可用"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "QoE timing unavailable"
+          }
+        }
+      }
+    },
+    "Client decode+render 0 ms (or timed out)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端解码+渲染 0 ms（或超时置零）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Client decode+render 0 ms (or timed out)"
+          }
+        }
+      }
+    },
+    "build unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "build 未知"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "build unknown"
+          }
+        }
+      }
+    },
+    "requested": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "requested"
+          }
+        }
+      }
+    },
+    "color": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颜色"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "color"
+          }
+        }
+      }
+    },
+    "physical": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "物理尺寸"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "physical"
+          }
+        }
+      }
+    },
+    "orientation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方向"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "orientation"
+          }
+        }
+      }
+    },
+    "EGFX pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EGFX 待定"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "EGFX pending"
+          }
+        }
+      }
+    },
+    "UDP pending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UDP 待定"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "UDP pending"
+          }
+        }
+      }
+    },
+    "UDP supported": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UDP 支持"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "UDP supported"
+          }
+        }
+      }
+    },
+    "UDP unsupported": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UDP 不支持"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "UDP unsupported"
+          }
+        }
+      }
+    },
+    "measured bandwidth %@ Mbit/s": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已测得带宽 %@ Mbit/s"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "measured bandwidth %@ Mbit/s"
+          }
+        }
+      }
+    },
+    "EGFX channel %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EGFX 通道 %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "EGFX channel %lld"
+          }
+        }
+      }
+    },
+    "%lld buffered bytes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 字节缓冲"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld buffered bytes"
+          }
+        }
+      }
+    },
+    "%lld frames decoded by client": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端已解码 %lld 帧"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld frames decoded by client"
+          }
+        }
+      }
+    },
+    "Client decode+render %lld ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "客户端解码+渲染 %lld ms"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Client decode+render %lld ms"
+          }
+        }
+      }
+    },
+    "RTT %lld ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RTT %lld ms"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "RTT %lld ms"
+          }
+        }
+      }
+    },
+    "baseline RTT %lld ms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基线 RTT %lld ms"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "baseline RTT %lld ms"
+          }
+        }
+      }
+    },
+    "build %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "build %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "build %lld"
+          }
+        }
+      }
+    },
+    "%lldx%lld mm": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldx%lld mm"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lldx%lld mm"
+          }
+        }
+      }
+    },
+    "%lld°": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld°"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%lld°"
+          }
+        }
+      }
+    },
+    "Info": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Info"
+          }
+        }
+      }
+    },
+    "Early": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "早期能力"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Early"
+          }
+        }
+      }
+    },
+    "Performance": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "性能标志"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Performance"
+          }
+        }
+      }
+    },
+    "none": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "none"
+          }
+        }
+      }
+    },
+    "auto-detect (AutoDetect)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检测（AutoDetect）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "auto-detect (AutoDetect)"
+          }
+        }
+      }
+    },
+    "dynamic graphics (DVC-GFX)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动态图形通道（DVC-GFX）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "dynamic graphics (DVC-GFX)"
+          }
+        }
+      }
+    },
+    "monitor layout (MonitorLayout)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示器布局（MonitorLayout）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "monitor layout (MonitorLayout)"
+          }
+        }
+      }
+    },
+    "heartbeat (Heartbeat)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心跳（Heartbeat）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "heartbeat (Heartbeat)"
+          }
+        }
+      }
+    },
+    "connection type (ConnectionType)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接类型（ConnectionType）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "connection type (ConnectionType)"
+          }
+        }
+      }
+    },
+    "32-bit color (32bpp)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "32 位颜色（32bpp）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "32-bit color (32bpp)"
+          }
+        }
+      }
+    },
+    "Unicode text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unicode 文本"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Unicode text"
+          }
+        }
+      }
+    },
+    "non-Unicode text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非 Unicode 文本"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "non-Unicode text"
+          }
+        }
+      }
+    },
+    "compression": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "压缩"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "compression"
+          }
+        }
+      }
+    },
+    "mouse wheel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标滚轮"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "mouse wheel"
+          }
+        }
+      }
+    },
+    "Waiting for client capability negotiation…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待客户端能力协商…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Waiting for client capability negotiation…"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.2",
+  "localizations": {
+    "en": {
+      "stringUnit": {
+        "state": "new",
+        "value": "%1$arg fps · %2$@ Mbit/s · encoding %3$@ ms"
+      }
+    }
+  }
+}

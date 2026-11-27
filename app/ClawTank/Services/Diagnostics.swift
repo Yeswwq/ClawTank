@@ -3,6 +3,7 @@
 // the RDP password or the TLS private key (they are never read here).
 
 import AppKit
+import ApplicationServices
 import Foundation
 import OSLog
 
@@ -20,6 +21,10 @@ enum Diagnostics {
             "Hardware \(hardwareModel()) · \(process.processorCount) cores · "
                 + "\(process.physicalMemory / 1_073_741_824) GB",
             "Generated \(ISO8601DateFormatter().string(from: Date()))",
+            "",
+            "Application:"
+        ] + applicationIdentity()
+        info += [
             "",
             "Displays:"
         ]
@@ -78,5 +83,62 @@ enum Diagnostics {
         sysctlbyname("hw.model", &model, &size, nil, 0)
         let bytes = model.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
         return String(bytes: bytes, encoding: .utf8) ?? "unknown"
+    }
+
+    /// Records the exact app identity used for the permission checks.
+    ///
+    /// macOS TCC associates Screen Recording and Accessibility grants with the
+    /// running code identity. A user can therefore have enabled an older copy
+    /// of ClawTank while the current process is a different ad-hoc build. These
+    /// fields make that distinction visible in an exported diagnostics bundle.
+    private static func applicationIdentity() -> [String] {
+        let bundle = Bundle.main
+        var lines = [
+            "  path = \(bundle.bundleURL.path)",
+            "  bundleID = \(bundle.bundleIdentifier ?? "(unknown)")",
+            "  executable = \(bundle.executableURL?.path ?? "(unknown)")",
+            "  hostArchitecture = \(hostArchitecture())",
+            "  screenRecording = \(CGPreflightScreenCaptureAccess() ? "granted" : "denied")",
+            "  accessibility = \(AXIsProcessTrusted() ? "granted" : "denied")"
+        ]
+        lines.append(contentsOf: codeSignatureSummary().map { "  \($0)" })
+        return lines
+    }
+
+    private static func hostArchitecture() -> String {
+        var value = utsname()
+        uname(&value)
+        return withUnsafeBytes(of: &value.machine) { bytes in
+            String(bytes: bytes.prefix(while: { $0 != 0 }), encoding: .utf8) ?? "unknown"
+        }
+    }
+
+    /// Returns stable, non-sensitive fields from `codesign -dv`.
+    ///
+    /// The command writes its inspection output to stderr. Only identity
+    /// metadata is retained; entitlements and requirements are intentionally
+    /// omitted from the bundle.
+    private static func codeSignatureSummary() -> [String] {
+        guard let executable = Bundle.main.executableURL?.path else { return [] }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-dv", "--verbose=4", executable]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return ["codeSignature = unavailable"]
+        }
+        let output = String(bytes: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let keys = ["Identifier=", "CDHash=", "TeamIdentifier=", "Signature=", "Runtime Version="]
+        let fields = output.split(whereSeparator: \.isNewline).compactMap { line -> String? in
+            let text = String(line)
+            guard let key = keys.first(where: { text.hasPrefix($0) }) else { return nil }
+            return "codeSignature.\(key.dropLast()) = \(text.dropFirst(key.count))"
+        }
+        return fields.isEmpty ? ["codeSignature = unavailable"] : fields
     }
 }

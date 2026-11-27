@@ -10,14 +10,6 @@ import Foundation
 import os
 import SystemConfiguration
 
-/// A Bool readable from any thread (the overlay toggle is read on the capture queue).
-final class AtomicFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value = false
-    func get() -> Bool { lock.withLock { value } }
-    func set(_ newValue: Bool) { lock.withLock { value = newValue } }
-}
-
 @MainActor
 final class ServerController: ObservableObject {
     enum Status: Equatable {
@@ -38,11 +30,11 @@ final class ServerController: ObservableObject {
     @Published private(set) var lastNotice: String?
     @Published private(set) var fingerprint = ""
     /// The connected client, if any.
-    @Published private(set) var session: SessionInfo?
+    @Published var session: SessionInfo?
     /// Live video readout, e.g. "60 fps · 14.2 Mbit/s · enc 3.1 ms"; nil when not streaming.
-    @Published private(set) var videoStatus: String?
+    @Published var videoStatus: String?
     /// e.g. "Virtual display 1512×982" while streaming.
-    @Published private(set) var displayDescription: String?
+    @Published var displayDescription: String?
     /// Tailscale status: how (and whether) this Mac can be reached from outside the LAN.
     @Published private(set) var remote: TailscaleState = .notInstalled
     @Published private(set) var wakeForNetwork: Bool?
@@ -60,20 +52,29 @@ final class ServerController: ObservableObject {
     private let security: SecurityService
     private let power: PowerManaging
     private(set) var password = ""
-    private var server: RdpServer?
-    private var video: VideoSession?
+    var server: RdpServer?
+    var video: VideoSession?
+    private var bitmap: BitmapSession?
     private var videoTask: Task<Void, Never>?
+    private var pendingVideoStart: PendingVideoStart?
+    private var videoGeneration: UInt64 = 0
     private let displays = DisplayService()
-    private var statsTimer: Timer?
-    private var lastCounters = VideoSession.Counters()
+    var statsTimer: Timer?
+    var lastCounters = VideoSession.Counters()
+    var lastAckedBytes: UInt64 = 0
+    var lastAckedFrames: UInt64 = 0
+    var lastStatsSampleUptime = ProcessInfo.processInfo.systemUptime
     private let overlayFlag = AtomicFlag()
+    let overlayState = AtomicOverlayState()
+    var rdpDiagnostics = RdpServer.RdpDiagnostics()
+    var hasLiveVideoFrame = false
     private let input: InputPipeline
     private var cursor: CursorPublisher?
     private var media: SessionMedia?
     /// Answers file-contents requests on its own queue, straight from the core's thread.
     private let fileServer = FileServer()
     private var subscriptions: Set<AnyCancellable> = []
-    private let log = Logger(subsystem: "dev.clawtank.ClawTank", category: "server")
+    let log = Logger(subsystem: "dev.clawtank.ClawTank", category: "server")
 
     /// RDP input marks a person as active; the Agent API yields to them (ADR-023).
     let humanActivity: HumanActivity
@@ -89,7 +90,11 @@ final class ServerController: ObservableObject {
         self.hostName = Self.localHostName()
         self.input = InputPipeline(swapControlCommand: settings.swapControlCommand)
         overlayFlag.set(settings.showsStatsOverlay)
-        settings.$showsStatsOverlay.sink { [overlayFlag] in overlayFlag.set($0) }.store(in: &subscriptions)
+        overlayState.set(enabled: settings.showsStatsOverlay)
+        settings.$showsStatsOverlay.sink { [overlayFlag, overlayState] enabled in
+            overlayFlag.set(enabled)
+            overlayState.set(enabled: enabled)
+        }.store(in: &subscriptions)
         settings.$swapControlCommand.sink { [input] in input.setSwapControlCommand($0) }.store(in: &subscriptions)
         let center = DistributedNotificationCenter.default()
         center.publisher(for: Notification.Name("com.apple.screenIsLocked"))
@@ -109,6 +114,12 @@ final class ServerController: ObservableObject {
     var isRunning: Bool { server != nil }
     var port: UInt16 { UInt16(clamping: settings.port) }
     var address: String { port == 3389 ? hostName : "\(hostName):\(port)" }
+
+    /// Updates remote-access discovery state while keeping the published setters private.
+    func updateRemoteAccess(_ state: TailscaleState, wakeForNetwork: Bool?) {
+        remote = state
+        self.wakeForNetwork = wakeForNetwork
+    }
 
     func start() {
         guard server == nil else { return }
@@ -176,29 +187,103 @@ final class ServerController: ObservableObject {
             }
             log.info("RDP password changed")
         } catch {
-            lastNotice = "Couldn't save the password: \(error.localizedDescription)"
+            lastNotice = String(localized: "Couldn't save the password: \(error.localizedDescription)")
         }
         return []
     }
+}
+// MARK: - RDP events
 
-    // MARK: - Events
-
+@MainActor
+extension ServerController {
     private func handle(_ event: RdpServer.Event) {
         guard server != nil else { return }
+        if handleTransportEvent(event) { return }
+        if handleVideoEvent(event) { return }
+        if handleMediaEvent(event) { return }
+        handleConnection(event)
+    }
+
+    private func handleTransportEvent(_ event: RdpServer.Event) -> Bool {
         switch event {
-        case .videoStart(let width, let height):
-            startVideo(width: width, height: height, scalePercent: nil)
+        case .videoTransport(let transport):
+            rdpDiagnostics.transport = transport
+            log.info("EGFX data transport: \(transport, privacy: .public)")
+            updateOverlayDiagnostics()
+            return true
+        case .rdpDiagnostics(let diagnostics):
+            rdpDiagnostics = diagnostics
+            logRdpDiagnostics(diagnostics)
+            updateOverlayDiagnostics()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func logRdpDiagnostics(_ diagnostics: RdpServer.RdpDiagnostics) {
+        let transport = diagnostics.transport
+        let path = diagnostics.selectedVideoPath ?? "pending"
+        let channel = diagnostics.egfxChannelID.map(String.init) ?? "none"
+        let message = "RDP diagnostics: \(diagnostics.width)x\(diagnostics.height) transport=\(transport) "
+            + "path=\(path) egfxOpen=\(diagnostics.egfxOpen) channel=\(channel)"
+        log.info("\(message, privacy: .public)")
+    }
+
+    private func handleVideoEvent(_ event: RdpServer.Event) -> Bool {
+        if case .initialScreen(let width, let height) = event {
+            renderInitialDiagnostics(width: width, height: height)
+            return true
+        }
+        switch event {
+        case .videoStart(let width, let height, let scale):
+            startVideo(width: width, height: height, scalePercent: scale)
+            return true
         case .videoResize(let width, let height, let scale):
             startVideo(width: width, height: height, scalePercent: scale)
+            return true
+        case .progressiveStart(let width, let height, let scale):
+            startBitmap(width: width, height: height, scalePercent: scale, transport: .progressive)
+            return true
+        case .progressiveResize(let width, let height, let scale):
+            startBitmap(width: width, height: height, scalePercent: scale, transport: .progressive)
+            return true
+        case .bitmapStart(let width, let height, let scale):
+            startBitmap(width: width, height: height, scalePercent: scale)
+            return true
+        case .bitmapResize(let width, let height, let scale):
+            startBitmap(width: width, height: height, scalePercent: scale)
+            return true
         case .videoStop:
             stopVideo()
+            return true
+        case .videoRefresh:
+            refreshVideo()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func refreshVideo() {
+        let generation = videoGeneration
+        enqueueVideo { [weak self] in
+            guard let self, self.videoGeneration == generation, self.session != nil else { return }
+            self.video?.resumeAfterClientRefresh()
+            self.bitmap?.refresh()
+        }
+    }
+
+    private func handleMediaEvent(_ event: RdpServer.Event) -> Bool {
+        switch event {
         case .audioStart, .audioStop, .clipboardReady, .clipboardRemoteFormats, .clipboardDataRequested,
              .clipboardData, .clipboardRemoteFiles, .clipboardFileRequested, .clipboardFileContents:
             if let media { media.handle(event) } else if case .clipboardDataRequested = event {
                 server?.clipboardProvide(nil)
             }
+            return true
         default:
-            handleConnection(event)
+            return false
         }
     }
 
@@ -225,26 +310,6 @@ final class ServerController: ObservableObject {
         }
     }
 
-    /// Failed logins, refusals and lockouts: shown in the menu and written to the audit log.
-    private func handleAccessEvent(_ event: RdpServer.Event) {
-        switch event {
-        case .connectionFailed(let peer, let error):
-            let ip = Self.ipOnly(peer)
-            log.notice("Connection from \(ip, privacy: .public) failed: \(error, privacy: .public)")
-            lastNotice = "Failed login from \(ip)"
-            record(.failedLogin, ip, detail: error)
-        case .rejected(let peer, let reason):
-            let ip = Self.ipOnly(peer)
-            lastNotice = Self.describeRefusal(reason, ip: ip)
-            record(.refused, ip, detail: reason)
-        case .lockedOut(let ip, let minutes):
-            lastNotice = "Locked out \(ip) for \(minutes) min after repeated failed logins"
-            record(.lockedOut, ip, detail: "\(minutes) min")
-        default:
-            break
-        }
-    }
-
     private func record(_ outcome: AuditEntry.Outcome, _ ip: String, detail: String? = nil) {
         // Only sessions prove which account was used; the core never learns the username of a
         // failed attempt, so don't imply one.
@@ -259,6 +324,11 @@ final class ServerController: ObservableObject {
     }
 
     private func beginSession(peer ip: String) {
+        videoGeneration &+= 1
+        hasLiveVideoFrame = false
+        rdpDiagnostics = RdpServer.RdpDiagnostics()
+        overlayState.set(fullScreen: true)
+        overlayState.set(text: String(localized: "Waiting for client capability negotiation…"))
         status = .connected(peer: ip)
         session = SessionInfo(peer: ip, since: Date())
         lastNotice = nil
@@ -273,6 +343,7 @@ final class ServerController: ObservableObject {
     }
 
     private func endSession() {
+        videoGeneration &+= 1
         media?.stop()
         media = nil
         stopInput()
@@ -288,7 +359,8 @@ final class ServerController: ObservableObject {
         // "AXTrustedCheckOptionPrompt" is the value of kAXTrustedCheckOptionPrompt (a C global).
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         if !AXIsProcessTrustedWithOptions(options) {
-            lastNotice = "Grant Accessibility to ClawTank in System Settings to enable keyboard and mouse"
+            lastNotice = String(localized:
+                "Grant Accessibility to ClawTank in System Settings to enable keyboard and mouse")
             log.notice("Accessibility not granted; input is ignored")
         }
         guard let server, cursor == nil else { return }
@@ -316,56 +388,170 @@ final class ServerController: ObservableObject {
 
 // Video lifecycle (same file, so it keeps access to the controller's private state).
 extension ServerController {
+    /// Failed logins, refusals and lockouts: shown in the menu and written to the audit log.
+    private func handleAccessEvent(_ event: RdpServer.Event) {
+        switch event {
+        case .connectionFailed(let peer, let classification, let error):
+            let ip = Self.ipOnly(peer)
+            log.notice("Connection from \(ip, privacy: .public) failed: \(error, privacy: .public)")
+            lastNotice = Self.describeFailure(error, ip: ip)
+            record(Self.connectionFailureOutcome(classification, error), ip, detail: error)
+        case .rejected(let peer, let reason):
+            let ip = Self.ipOnly(peer)
+            lastNotice = Self.describeRefusal(reason, ip: ip)
+            record(.refused, ip, detail: reason)
+        case .lockedOut(let ip, let minutes):
+            lastNotice = String(localized: "Locked out \(ip) for \(minutes) min after repeated failed logins")
+            record(.lockedOut, ip, detail: "\(minutes) min")
+        default:
+            break
+        }
+    }
+
     /// Starts (or, after a resize, restarts) video at `width`×`height`. Start, stop and restart
     /// run strictly in order on `videoTask` so a resize can't race a disconnect.
     private func startVideo(width: Int, height: Int, scalePercent: Int?) {
-        guard server != nil else { return }
+        startSession(width: width, height: height, scalePercent: scalePercent, transport: .avc)
+    }
+
+    private func startBitmap(width: Int, height: Int, scalePercent: Int?) {
+        startBitmap(width: width, height: height, scalePercent: scalePercent, transport: .bitmap)
+    }
+
+    private func startBitmap(width: Int, height: Int, scalePercent: Int?,
+                             transport: VideoStartRequest.Transport) {
+        startSession(width: width, height: height, scalePercent: scalePercent, transport: transport)
+    }
+
+    private func startSession(width: Int, height: Int, scalePercent: Int?,
+                              transport: VideoStartRequest.Transport) {
+        guard server != nil, session != nil else {
+            log.notice("Ignoring display start without an active client session")
+            return
+        }
         guard CGPreflightScreenCaptureAccess() else {
             // Shows the system prompt the first time; afterwards the user must use Settings.
             CGRequestScreenCaptureAccess()
-            lastNotice = "Grant Screen Recording to ClawTank in System Settings, then reconnect"
+            lastNotice = String(localized:
+                "Grant Screen Recording to ClawTank in System Settings, then reconnect")
             log.notice("Screen Recording not granted; client sees the test pattern")
             return
         }
         let mode = settings.displayMode
+        let density = settings.virtualDisplayDensity
         let frameRate = settings.frameRate
-        let bitRateFactor = settings.quality.bitRateFactor
+        let bitRateFactor = settings.bitRateFactor
+        let generation = videoGeneration
+        let request = VideoStartRequest(width: width, height: height, scalePercent: scalePercent,
+                                        mode: mode, density: density, frameRate: frameRate,
+                                        bitRateFactor: bitRateFactor,
+                                        transport: transport,
+                                        generation: generation)
+        overlayState.set(fullScreen: hasLiveVideoFrame ? false : true)
+        updateOverlayDiagnostics()
+        enqueueVideoStart(request)
+    }
+
+    /// Coalesces requests that are queued behind current video work. Once a resize starts, later
+    /// requests form a new batch after it, preserving the serial display/encoder lifecycle.
+    private func enqueueVideoStart(_ request: VideoStartRequest) {
+        if let pendingVideoStart {
+            pendingVideoStart.request = request
+            log.debug("Coalesced pending video layout to \(request.width)x\(request.height)")
+            return
+        }
+
+        let pending = PendingVideoStart(request)
+        pendingVideoStart = pending
         enqueueVideo { [self] in
-            await stopCurrentVideo()
-            guard let server else { return }
-            guard let target = await displays.prepare(width: width, height: height,
-                                                      scalePercent: scalePercent, mode: mode) else {
-                lastNotice = "No display available to share"
+            guard pendingVideoStart === pending else {
+                log.debug("Discarding queued video layout superseded by session stop")
                 return
             }
-            input.setSession(width: width, height: height, displayBounds: target.bounds)
+            pendingVideoStart = nil
+            await startVideoSession(pending.request)
+        }
+    }
+
+    private func startVideoSession(_ request: VideoStartRequest) async {
+        let (width, height) = (request.width, request.height)
+        await stopCurrentSessions()
+        guard videoGeneration == request.generation, session != nil, let server else {
+            log.debug("Ignoring stale queued video start")
+            return
+        }
+        guard let target = await displays.prepare(width: width, height: height,
+                                                  scalePercent: request.scalePercent, mode: request.mode,
+                                                  density: request.density) else {
+            lastNotice = String(localized: "No display available to share")
+            return
+        }
+        guard videoGeneration == request.generation, session != nil else {
+            log.debug("Discarding display prepared for an ended RDP session")
+            return
+        }
+        input.setSession(width: width, height: height, displayBounds: target.bounds)
+        lastCounters = .init()
+        let videoStats = server.videoStats
+        lastAckedBytes = videoStats.bytes_acked
+        lastAckedFrames = videoStats.frames_acked
+        lastStatsSampleUptime = ProcessInfo.processInfo.systemUptime
+        do {
+            try await startCapture(request, target: target, server: server)
+            guard videoGeneration == request.generation, session != nil else {
+                log.debug("Stopping display startup completed for an ended RDP session")
+                return
+            }
+            publishStartedSession(request, target: target)
+        } catch {
+            log.error("Display start failed: \(error.localizedDescription, privacy: .public)")
+            if request.transport == .avc { self.video = nil } else { self.bitmap = nil }
+            lastNotice = String(localized: "Video failed: \(error.localizedDescription)")
+            return
+        }
+        statsTimer?.invalidate()
+        statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updateVideoStats() }
+        }
+    }
+
+    private func startCapture(_ request: VideoStartRequest, target: DisplayTarget,
+                              server: RdpServer) async throws {
+        let onFirstFrame: @Sendable () -> Void = { [weak self] in
+            Task { @MainActor in self?.markLiveVideo() }
+        }
+        switch request.transport {
+        case .avc:
             let flag = overlayFlag
-            let video = VideoSession(server: server, width: width, height: height, target: target,
-                                     frameRate: frameRate, bitRateFactor: bitRateFactor) { flag.get() }
+            let overlayState = self.overlayState
+            let video = VideoSession(server: server, width: request.width, height: request.height,
+                                     target: target, frameRate: request.frameRate,
+                                     bitRateFactor: request.bitRateFactor,
+                                     overlayEnabled: { flag.get() },
+                                     overlayState: overlayState,
+                                     onFirstFrameSent: onFirstFrame)
             self.video = video
-            lastCounters = .init()
-            do {
-                try await video.start()
-                displayDescription = "\(target.isVirtual ? "Virtual" : "Physical") display \(width)×\(height)"
-                session?.resolution = "\(width)×\(height)"
-                log.info("Video \(width)x\(height)@\(frameRate) on \(target.displayID) virtual=\(target.isVirtual)")
-            } catch {
-                log.error("Video start failed: \(error.localizedDescription, privacy: .public)")
-                if self.video === video { self.video = nil }
-                lastNotice = "Video failed: \(error.localizedDescription)"
-                return
-            }
-            statsTimer?.invalidate()
-            statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-                Task { @MainActor in self?.updateVideoStats() }
-            }
+            do { try await video.start() } catch { self.video = nil; throw error }
+        case .bitmap:
+            let bitmap = BitmapSession(server: server, width: request.width, height: request.height,
+                                       target: target, transport: .legacyBitmap,
+                                       onFirstFrameSent: onFirstFrame)
+            self.bitmap = bitmap
+            do { try await bitmap.start() } catch { self.bitmap = nil; throw error }
+        case .progressive:
+            let bitmap = BitmapSession(server: server, width: request.width, height: request.height,
+                                       target: target, transport: .progressive,
+                                       onFirstFrameSent: onFirstFrame)
+            self.bitmap = bitmap
+            do { try await bitmap.start() } catch { self.bitmap = nil; throw error }
         }
     }
 
     /// Stops video; with `releaseDisplay` also removes the virtual display (session over).
     private func stopVideo(releaseDisplay: Bool = false) {
+        pendingVideoStart = nil
         enqueueVideo { [self] in
-            await stopCurrentVideo()
+            await stopCurrentSessions()
             if releaseDisplay {
                 displays.release()
                 displayDescription = nil
@@ -381,56 +567,14 @@ extension ServerController {
         }
     }
 
-    private func stopCurrentVideo() async {
-        statsTimer?.invalidate()
-        statsTimer = nil
-        videoStatus = nil
-        guard let video else { return }
-        self.video = nil
-        await video.stop()
+    func stopCurrentBitmap() async {
+        guard let bitmap else { return }
+        self.bitmap = nil
+        await bitmap.stop()
     }
 
-    private func updateVideoStats() {
-        guard let video else { return }
-        let now = video.snapshot()
-        let encoded = now.encodedFrames - lastCounters.encodedFrames
-        let bytes = now.sentBytes - lastCounters.sentBytes
-        let encodeTime = now.encodeSeconds - lastCounters.encodeSeconds
-        let skipped = now.skippedFrames - lastCounters.skippedFrames
-        lastCounters = now
-        var text = Self.formatVideoStats(fps: encoded, bytesPerSecond: bytes,
-                                         encodeMs: encoded > 0 ? encodeTime * 1000 / Double(encoded) : 0,
-                                         skipped: skipped)
-        if let core = server?.videoStats {
-            let sample = AdaptiveBitrate.Sample(skippedFrames: skipped, framesInFlight: Int(core.frames_in_flight),
-                                                ackLatencyMs: Double(core.ack_latency_us) / 1000,
-                                                framesSent: encoded)
-            if let (rate, congested) = video.adapt(sample) {
-                text += String(format: " · rtt %.0f ms · target %.1f Mbit/s%@", sample.ackLatencyMs,
-                               Double(rate) / 1_000_000, congested ? " (congested)" : "")
-            }
-        }
-        videoStatus = text
-        video.setOverlayText(text)
-    }
-}
-
-// MARK: - Remote access (Tailscale)
-
-extension ServerController {
-    /// Re-detects Tailscale and the wake setting (runs the CLI off the main thread).
-    func refreshRemoteAccess() {
-        Task.detached(priority: .utility) {
-            let state = RemoteAccess.detect()
-            let wake = RemoteAccess.wakeForNetworkAccess()
-            await MainActor.run { [weak self] in
-                self?.remote = state
-                self?.wakeForNetwork = wake
-            }
-        }
-    }
-
-    func copyRemoteAddress() {
-        if let address = remote.remoteAddress { Self.copyToPasteboard(address) }
+    func stopCurrentSessions() async {
+        await stopCurrentVideo()
+        await stopCurrentBitmap()
     }
 }

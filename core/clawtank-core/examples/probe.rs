@@ -11,6 +11,9 @@
 //!        `… probe <host:port> <user> WxH --resize-demo W2xH2@SCALE OUTDIR`
 //! The fourth form streams at WxH, saves the first keyframe, asks for W2xH2 over Display
 //! Control, times how long until a keyframe at the new size arrives, and saves that one too.
+//!        `… probe <host:port> <user> WxH --progressive SECONDS`
+//! The fifth form advertises `V10.4` with `AVC_DISABLED`, reports the negotiated path, and
+//! checks the decoded Progressive framebuffer against the server test pattern.
 //! The password comes from the environment so it never appears in the process list.
 
 #[path = "../tests/support/client.rs"]
@@ -74,6 +77,10 @@ async fn main() -> anyhow::Result<()> {
     if let Some(seconds) = egfx_seconds {
         return measure_egfx(addr, user, &password, width, height, seconds).await;
     }
+    if args.get(3).map(String::as_str) == Some("--progressive") {
+        let seconds = args.get(4).map(|s| s.parse()).transpose()?.unwrap_or(4);
+        return measure_progressive(addr, user, &password, width, height, seconds).await;
+    }
 
     let started = Instant::now();
     let (result, mut session, cert) =
@@ -100,6 +107,47 @@ async fn main() -> anyhow::Result<()> {
     println!("saved {out}");
     drop(session);
     println!("disconnected");
+    Ok(())
+}
+
+/// Connects with AVC disabled and verifies that `WireToSurface2` frames reach the client.
+async fn measure_progressive(
+    addr: std::net::SocketAddr,
+    user: &str,
+    password: &str,
+    width: u16,
+    height: u16,
+    seconds: u64,
+) -> anyhow::Result<()> {
+    let recorder = client::EgfxRecorder {
+        advertise_avc_disabled: true,
+        ..Default::default()
+    };
+    let (result, mut session, _) =
+        client::connect(addr, user, password, width, height, Some(&recorder)).await?;
+    let started = Instant::now();
+    let (ok, _image) =
+        client::pump_until_with_image(result, &mut session, Duration::from_secs(seconds), || {
+            recorder
+                .progressive_pdus
+                .load(std::sync::atomic::Ordering::Acquire)
+                > 0
+                && recorder.frame_count() > 0
+        })
+        .await?;
+    anyhow::ensure!(ok, "timed out waiting for WireToSurface2");
+    println!(
+        "progressive verified: {} pdu(s), {} progressive byte(s), {} frame(s), {:?} after connect",
+        recorder
+            .progressive_pdus
+            .load(std::sync::atomic::Ordering::Acquire),
+        recorder
+            .progressive_bytes
+            .load(std::sync::atomic::Ordering::Acquire),
+        recorder.frame_count(),
+        started.elapsed()
+    );
+    drop(session);
     Ok(())
 }
 
@@ -177,7 +225,7 @@ async fn pump_for(
             return Ok(());
         };
         let (action, payload) = read?;
-        for out in stage.process(image, action, &payload)? {
+        for out in stage.process(image, action, &payload, None)? {
             match out {
                 ironrdp_session::ActiveStageOutput::ResponseFrame(f) => {
                     session.write_all(&f).await?
@@ -375,7 +423,7 @@ async fn resize_demo(
             continue;
         };
         let (action, payload) = read?;
-        for out in stage.process(&mut image, action, &payload)? {
+        for out in stage.process(&mut image, action, &payload, None)? {
             if let ironrdp_session::ActiveStageOutput::ResponseFrame(f) = out {
                 session.write_all(&f).await?;
             }
@@ -395,7 +443,12 @@ impl ironrdp_rdpsnd::client::RdpsndClientHandler for AudioProbe {
     fn get_formats(&self) -> &[ironrdp_rdpsnd::pdu::AudioFormat] {
         &self.formats
     }
-    fn wave(&mut self, _format_no: usize, _ts: u32, data: std::borrow::Cow<'_, [u8]>) {
+    fn wave(
+        &mut self,
+        _format: &ironrdp_rdpsnd::pdu::AudioFormat,
+        _ts: u32,
+        data: std::borrow::Cow<'_, [u8]>,
+    ) {
         use std::sync::atomic::Ordering;
         self.bytes.fetch_add(data.len() as u64, Ordering::Relaxed);
         let peak = data

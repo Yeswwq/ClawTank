@@ -1,20 +1,25 @@
 [workspace]
 resolver = "3"
-members = ["clawtank-core", "clawtank-mcp"]
-# Vendored upstream code is built but not linted or formatted as ours.
-exclude = ["vendor"]
+members = ["clawtank-core", "clawtank-mcp", "vendor/ironrdp-server-0.14-diagnostics"]
+default-members = ["clawtank-core", "clawtank-mcp"]
+# Historical vendor snapshots are retained for reference, not built or linted.
 
 [workspace.package]
-version = "0.9.0"
+version = "1.0.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/clawtank/clawtank"
-rust-version = "1.88"
+rust-version = "1.94"
 
-# Temporary: ironrdp-server 0.13.0 + mouse-mapping fix from IronRDP master (ADR-017).
-# Remove when IronRDP publishes a release containing the fix.
-[patch.crates-io]
-ironrdp-server = { path = "vendor/ironrdp-server" }
+# IronRDP 0.14 protocol stack from one upstream revision. The 0.14 server is
+# available in the official repository before its crates.io publication; keeping
+# every IronRDP crate on the same revision prevents duplicate incompatible types.
+[workspace.metadata.ironrdp]
+revision = "475e5d534f0afa080e51b940caf3d7c1f9d6ec6c"
+
+[patch."https://github.com/Devolutions/IronRDP.git"]
+ironrdp-acceptor = { path = "vendor/ironrdp-acceptor" }
+ironrdp-server = { path = "vendor/ironrdp-server-0.14-diagnostics" }
 
 [profile.release]
 lto = "thin"

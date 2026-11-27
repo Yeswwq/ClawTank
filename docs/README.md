@@ -19,7 +19,7 @@
 ## Working on ClawTank
 | Document | What it covers |
 |---|---|
-| [Contributing](../CONTRIBUTING.md) | Development setup, conventions, the clean-room rule, pull requests |
+| [Contributing](../CONTRIBUTING.md) | Development setup, conventions, interoperability analysis and reuse boundaries, pull requests |
 | [macOS 26 Intel + NVIDIA direction](macos26-intel-nvidia-rdp.md) | Personal branch contract, x86_64 build status, RDP/video acceptance matrix |
 | [Testing](testing.md) | Automated coverage, live measurements, and the manual checklist with results |
 | [Releasing](releasing.md) | `make release`, Developer ID signing and notarization, updates |

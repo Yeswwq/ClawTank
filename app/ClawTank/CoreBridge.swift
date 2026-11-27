@@ -17,6 +17,8 @@ final class CoreBridge: Sendable {
         _ = ct_core_init()
         version = String(cString: ct_version())
         // Route Rust `tracing` output into the unified log (Console.app, category "core").
+        let filter = RustLogLevel.standard.filter
+        coreLog.info("Rust diagnostic filter: \(filter, privacy: .public)")
         _ = ct_set_log_callback({ level, message in
             guard let message else { return }
             let text = String(cString: message)
@@ -26,7 +28,19 @@ final class CoreBridge: Sendable {
             case CT_LOG_LEVEL_INFO: coreLog.info("\(text, privacy: .public)")
             default: coreLog.debug("\(text, privacy: .public)")
             }
-        }, "info")
+        }, filter)
+    }
+
+    @discardableResult
+    func setLogLevel(_ level: RustLogLevel) -> Bool {
+        let filter = level.filter
+        let status = filter.withCString { ct_set_log_filter($0) }
+        guard status == CT_STATUS_OK else {
+            coreLog.error("Could not change Rust log filter: status=\(status.rawValue)")
+            return false
+        }
+        coreLog.info("Rust log filter changed to \(level.rawValue, privacy: .public)")
+        return true
     }
 
     /// Calls `ct_core_init` again; exposed for tests of the idempotency contract.
@@ -69,10 +83,21 @@ final class RdpServer: @unchecked Sendable {
         case lockedOut(ip: String, minutes: Int)
         case clientConnected(String)
         case clientDisconnected(peer: String, error: String?)
-        case connectionFailed(peer: String, error: String)
-        case videoStart(width: Int, height: Int)
-        case videoResize(width: Int, height: Int, scalePercent: Int)
+        /// `authentication` means the configured credentials were rejected; `handshake`
+        /// means TLS/NLA connectivity, capability, or finalization failed.
+        case connectionFailed(peer: String, classification: String, error: String)
+        case videoStart(width: Int, height: Int, scalePercent: Int?)
+        case videoResize(width: Int, height: Int, scalePercent: Int?)
+        case progressiveStart(width: Int, height: Int, scalePercent: Int?)
+        case progressiveResize(width: Int, height: Int, scalePercent: Int?)
+        case bitmapStart(width: Int, height: Int, scalePercent: Int?)
+        case bitmapResize(width: Int, height: Int, scalePercent: Int?)
         case videoStop
+        /// EGFX data plane: `"udp"` after Soft-Sync migration, otherwise `"tcp"`.
+        case videoTransport(String)
+        case rdpDiagnostics(RdpDiagnostics)
+        case initialScreen(width: Int, height: Int)
+        case videoRefresh
         case audioStart(rate: Int, channels: Int)
         case audioStop
         case clipboardReady
@@ -203,6 +228,58 @@ final class RdpServer: @unchecked Sendable {
         }
     }
 
+    /// Replaces the one-shot Rust test bitmap with a Swift-rendered diagnostic
+    /// canvas. The core copies `data` before returning.
+    func submitInitialBitmap(_ data: Data, width: Int, height: Int, stride: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle, stride >= width * 4 else { return false }
+        return data.withUnsafeBytes { bytes in
+            ct_server_submit_initial_bitmap(
+                handle,
+                bytes.bindMemory(to: UInt8.self).baseAddress,
+                bytes.count,
+                UInt16(clamping: width),
+                UInt16(clamping: height),
+                stride)
+        }
+    }
+
+    /// Copies one BGRA frame into the Rust latest-frame mailbox before returning.
+    func submitBitmap(_ baseAddress: UnsafeRawPointer, length: Int, width: Int, height: Int,
+                      stride: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle, length > 0, stride > 0 else { return false }
+        return ct_server_submit_bitmap(
+            handle,
+            baseAddress.assumingMemoryBound(to: UInt8.self),
+            length,
+            UInt16(clamping: width),
+            UInt16(clamping: height),
+            stride)
+    }
+
+    /// Encodes and queues one BGRA frame through EGFX RemoteFX Progressive.
+    func submitProgressive(_ baseAddress: UnsafeRawPointer, length: Int, width: Int, height: Int,
+                           stride: Int) -> SubmitResult {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle, length > 0, stride > 0 else { return .notReady }
+        let result = ct_server_submit_progressive(
+            handle,
+            baseAddress.assumingMemoryBound(to: UInt8.self),
+            length,
+            UInt16(clamping: width),
+            UInt16(clamping: height),
+            stride)
+        switch result {
+        case CT_SUBMIT_RESULT_SENT: return .sent
+        case CT_SUBMIT_RESULT_NEED_KEYFRAME: return .needKeyframe
+        default: return .notReady
+        }
+    }
+
     /// Interleaved 16-bit PCM in the negotiated format. Thread-safe.
     @discardableResult
     func submitAudio(_ pcm: Data) -> Bool {
@@ -254,6 +331,20 @@ final class RdpServer: @unchecked Sendable {
         return ct_server_video_can_accept(handle)
     }
 
+    var canAcceptBitmap: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle else { return false }
+        return ct_server_bitmap_can_accept(handle)
+    }
+
+    var canAcceptProgressive: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let handle else { return false }
+        return ct_server_progressive_can_accept(handle)
+    }
+
     var videoStats: CtVideoStats {
         lock.lock()
         defer { lock.unlock() }
@@ -278,7 +369,12 @@ private final class RdpEventSink: @unchecked Sendable {
 private func rdpServerInputCallback(ctx: UnsafeMutableRawPointer?, event: UnsafePointer<CtInputEvent>?) {
     guard let ctx, let event = event?.pointee else { return }
     let sink = Unmanaged<RdpEventSink>.fromOpaque(ctx).takeUnretainedValue()
-    let input: ClientInput? = switch event.kind {
+    guard let input = clientInput(from: event) else { return }
+    sink.input(input)
+}
+
+private func clientInput(from event: CtInputEvent) -> ClientInput? {
+    switch event.kind {
     case CT_INPUT_KIND_KEY: .key(scancode: UInt8(truncatingIfNeeded: event.code), extended: event.extended,
                                  down: event.down)
     case CT_INPUT_KIND_UNICODE: .unicode(event.code, down: event.down)
@@ -287,9 +383,10 @@ private func rdpServerInputCallback(ctx: UnsafeMutableRawPointer?, event: Unsafe
     case CT_INPUT_KIND_REL_MOVE: .relativeMove(dx: Int(event.x), dy: Int(event.y))
     case CT_INPUT_KIND_BUTTON: .button(Int(event.button), down: event.down)
     case CT_INPUT_KIND_WHEEL: .wheel(vertical: Int(event.y), horizontal: Int(event.x))
+    case CT_INPUT_KIND_TOUCH: .touch(contactID: Int(event.code), flags: event.flags,
+                                     x: Int(event.x), y: Int(event.y))
     default: nil
     }
-    if let input { sink.input(input) }
 }
 
 /// C callback trampoline: decodes the event and forwards it to the `RdpEventSink` in `ctx`.

@@ -39,6 +39,12 @@ pub fn render_bgra(width: u16, height: u16) -> Vec<u8> {
     out
 }
 
+/// Renders the same opaque display pixels in the byte order returned by
+/// `CVPixelBuffer` for a ScreenCaptureKit `kCVPixelFormatType_32BGRA` surface.
+pub fn render_screen_capture_bgra(width: u16, height: u16) -> Vec<u8> {
+    render_bgra(width, height)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,5 +65,12 @@ mod tests {
     fn ramp_spans_black_to_white() {
         assert_eq!(expected_rgb(0, 99, 100, 100), (0, 0, 0));
         assert_eq!(expected_rgb(99, 99, 100, 100), (255, 255, 255));
+    }
+
+    #[test]
+    fn screen_capture_named_renderer_preserves_cyan_byte_order() {
+        let px = render_screen_capture_bgra(8, 8);
+        let cyan = 2 * 4;
+        assert_eq!(&px[cyan..cyan + 4], &[255, 255, 0, 0xff]);
     }
 }
