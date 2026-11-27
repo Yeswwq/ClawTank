@@ -7,7 +7,7 @@
 ## 分支约定
 
 - `main` 保持为上游基线的本地镜像。
-- `macos26-intel-nvidia-rdp` 是个人集成分支，以上游 `upstream/main` 作为
+- `Hac-intel` 是个人集成分支，以上游 `upstream/main` 作为
   rebase 基线。
 - 功能开发使用短生命周期的主题分支或聚焦提交，每个提交只处理一个问题。
   不提交生成的 Xcode 工程、构建产物或本地签名材料。

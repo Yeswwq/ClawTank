@@ -169,7 +169,7 @@ No. ClawTank makes no network connections of its own. It only accepts incoming R
 
 - One monitor per session: a multi-monitor client gets one resizable desktop. No AVC444 (full-colour 4:4:4) yet; Retina sessions give crisp text instead.
 - 尚未公证，首次打开需要执行一次 “Open Anyway”。上游发布流程以 Apple Silicon
-  为基线；Intel/x86_64 支持在 `macos26-intel-nvidia-rdp` 分支跟踪，本机 macOS
+  为基线；Intel/x86_64 支持在 `Hac-intel` 分支跟踪，本机 macOS
   26.7.3 + Xcode 26.6 已通过完整 App 构建、XCTest、lint 和 Intel 发布打包。
 - No automatic updates yet: watch [Releases](https://github.com/HMAKT99/ClawTank/releases) on GitHub.
 - See [CHANGELOG.md](CHANGELOG.md) and [docs/testing.md](docs/testing.md) for what's been verified.
